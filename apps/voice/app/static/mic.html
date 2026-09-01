@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Livelihood Setu — Voice Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream-50:  #FDFAF1;
+    --cream-100: #F7EFDC;
+    --cream-200: #EFE3C0;
+    --paper:     #FFFFFF;
+    --gold:      #E4B24A;
+    --gold-deep: #C9932A;
+    --ink:       #2E2618;
+    --ink-soft:  #5B4F3B;
+    --muted:     #9C907A;
+    --line:      #EBDFC2;
+    --shadow-sm: 0 1px 2px rgba(60,45,15,.06);
+    --shadow-md: 0 12px 28px -14px rgba(80,55,10,.22), 0 2px 6px rgba(80,55,10,.06);
+    --shadow-lg: 0 24px 60px -30px rgba(80,55,10,.35);
+    --radius:    16px;
+    --radius-sm: 10px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #FFF6DC 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 10%, #FBEEC6 0%, transparent 60%),
+      linear-gradient(180deg, var(--cream-50) 0%, #FAF3E1 100%);
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 3rem 1.25rem 6rem;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  header { margin-bottom: 2rem; display: flex; align-items: flex-start; gap: 1rem; }
+  header .mark {
+    width: 52px; height: 52px; flex: none;
+    display: grid; place-items: center;
+    background: linear-gradient(160deg, var(--gold) 0%, var(--gold-deep) 100%);
+    color: #fff;
+    border-radius: 14px;
+    font-size: 1.6rem;
+    box-shadow: var(--shadow-md);
+  }
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: 2.15rem;
+    letter-spacing: -0.01em;
+    margin: 0 0 .2rem;
+    color: var(--ink);
+  }
+  h1 em { font-style: italic; font-weight: 500; color: var(--gold-deep); }
+  .sub {
+    color: var(--ink-soft);
+    font-size: .95rem;
+    margin: 0;
+  }
+  .sub code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--cream-100);
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: .82rem;
+    color: var(--ink);
+  }
+
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 1.25rem;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: .8rem;
+    align-items: end;
+  }
+  @media (max-width: 640px) { .field-row { grid-template-columns: 1fr; } }
+  label {
+    display: block;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: .35rem;
+    font-weight: 600;
+  }
+  input, select {
+    width: 100%;
+    font: 500 .98rem "Inter", sans-serif;
+    color: var(--ink);
+    padding: .7rem .85rem;
+    background: var(--cream-50);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+  }
+  input:focus, select:focus {
+    border-color: var(--gold);
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(228,178,74,.18);
+  }
+
+  button {
+    font: 600 .95rem "Inter", sans-serif;
+    padding: .75rem 1.1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform .06s ease, box-shadow .15s, background .15s, border-color .15s;
+  }
+  button.ghost {
+    background: var(--paper);
+    border-color: var(--line);
+    color: var(--ink-soft);
+  }
+  button.ghost:hover { border-color: var(--gold); color: var(--ink); }
+  button.primary {
+    background: var(--ink);
+    color: var(--cream-50);
+  }
+  button.primary:hover { background: #1c160c; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .mic-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    align-items: center;
+    padding-top: 1.15rem;
+    margin-top: 1.15rem;
+    border-top: 1px dashed var(--line);
+  }
+  .mic {
+    width: 92px; height: 92px; flex: none;
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 30% 30%, #FFDA7A 0%, var(--gold) 55%, var(--gold-deep) 100%);
+    color: #fff;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-md), inset 0 -3px 0 rgba(0,0,0,.08);
+    font-size: 1.8rem;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .1s, box-shadow .15s;
+  }
+  .mic:hover { transform: scale(1.03); }
+  .mic:active, .mic.recording {
+    transform: scale(.97);
+    box-shadow: 0 0 0 6px rgba(228,178,74,.25), var(--shadow-md);
+  }
+  .mic.recording {
+    background: radial-gradient(circle at 30% 30%, #FF9A9E 0%, #D93A5B 60%, #A0223C 100%);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(217,58,91,.45), var(--shadow-md); }
+    50%     { box-shadow: 0 0 0 14px rgba(217,58,91,0), var(--shadow-md); }
+  }
+
+  .mic-hint {
+    display: flex; flex-direction: column; gap: .35rem;
+  }
+  .mic-hint .big {
+    font-family: "Fraunces", serif;
+    font-weight: 500;
+    font-size: 1.25rem;
+    color: var(--ink);
+  }
+  .mic-hint .status {
+    font-size: .88rem;
+    color: var(--muted);
+  }
+  .mic-hint .status .dot {
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background: var(--gold); vertical-align: middle; margin-right: 6px;
+  }
+  .status.rec .dot { background: #D93A5B; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  .type-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .75rem;
+    margin-top: 1.15rem;
+  }
+
+  /* Conversation log */
+  #log { display: flex; flex-direction: column; gap: 1rem; }
+  .turn {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.15rem 1.25rem;
+    box-shadow: var(--shadow-sm);
+    animation: rise .25s ease-out;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .said, .heard {
+    display: flex; gap: .7rem; align-items: baseline;
+    font-size: .95rem;
+  }
+  .said { color: var(--ink); }
+  .heard {
+    color: var(--ink-soft);
+    margin-top: .8rem;
+    padding-top: .8rem;
+    border-top: 1px dashed var(--line);
+  }
+  .role {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: .82rem;
+    color: var(--gold-deep);
+    letter-spacing: .02em;
+    flex: none;
+    min-width: 3.5rem;
+  }
+  .heard .role { color: var(--ink); }
+  .transcript {
+    color: var(--muted);
+    font-size: .82rem;
+    margin-left: 4rem;
+    margin-top: .15rem;
+  }
+
+  .reply-text { font-size: 1rem; }
+
+  audio {
+    width: 100%;
+    margin-top: .9rem;
+    border-radius: 999px;
+    filter: sepia(.15) hue-rotate(-10deg) saturate(1.1);
+  }
+
+  ol.top3 {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    display: grid;
+    gap: .55rem;
+    counter-reset: rank;
+  }
+  ol.top3 li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: .8rem;
+    align-items: center;
+    padding: .7rem .9rem;
+    background: linear-gradient(180deg, var(--cream-50) 0%, #FFF8E5 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    counter-increment: rank;
+  }
+  ol.top3 li::before {
+    content: counter(rank);
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--gold-deep);
+    width: 24px; height: 24px;
+    display: grid; place-items: center;
+    background: #fff;
+    border: 1px solid var(--gold);
+    border-radius: 50%;
+  }
+  ol.top3 .role-name {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  ol.top3 .qp {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: .75rem;
+    color: var(--muted);
+    display: block;
+  }
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--cream-200);
+    color: var(--ink-soft);
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    margin-left: .3rem;
+  }
+  .pill.level { background: var(--ink); color: var(--cream-50); }
+
+  .done-note {
+    margin-top: .9rem;
+    padding: .7rem .9rem;
+    background: var(--cream-100);
+    color: var(--ink-soft);
+    border-radius: var(--radius-sm);
+    font-size: .85rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .done-note::before {
+    content: "✓"; color: #fff; background: var(--gold-deep);
+    width: 20px; height: 20px; border-radius: 50%;
+    display: grid; place-items: center; font-size: .75rem; font-weight: 700;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 2.5rem 1rem;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+  }
+
+  /* ---- Profile side panel ---- */
+  aside.profile {
+    position: sticky;
+    top: 1.5rem;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.35rem;
+    box-shadow: var(--shadow-md);
+  }
+  aside.profile h2 {
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin: 0 0 .15rem;
+    color: var(--ink);
+  }
+  aside.profile .caption {
+    font-size: .78rem;
+    color: var(--muted);
+    margin: 0 0 1rem;
+  }
+  .progress {
+    height: 6px;
+    background: var(--cream-100);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .progress > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-deep) 100%);
+    width: 0%;
+    transition: width .35s ease;
+  }
+  .section-label {
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    margin: .9rem 0 .5rem;
+    font-weight: 700;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+  ul.slots { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .35rem; }
+  ul.slots li {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: .55rem;
+    align-items: baseline;
+    padding: .45rem .6rem;
+    border-radius: 10px;
+    background: var(--cream-50);
+    border: 1px solid transparent;
+    font-size: .88rem;
+  }
+  ul.slots li.filled {
+    background: linear-gradient(180deg, #FFFBEB 0%, #FFF4D0 100%);
+    border-color: var(--gold);
+  }
+  ul.slots li.pending {
+    background: transparent;
+    color: var(--muted);
+  }
+  .tick, .dash {
+    width: 18px; height: 18px; display: grid; place-items: center;
+    border-radius: 50%; font-size: .7rem; font-weight: 700;
+  }
+  .tick { background: var(--gold-deep); color: #fff; }
+  .dash { background: var(--cream-200); color: var(--muted); }
+  .slot-name {
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .filled .slot-name { color: var(--ink); }
+  .slot-val {
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    color: var(--ink);
+    max-width: 160px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .filled .tick::after { content: "✓"; }
+  .pending .dash::after { content: "•"; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="mark">🎙️</div>
+    <div>
+      <h1>Livelihood <em>Setu</em></h1>
+      <p class="sub">A voice‑first counsellor. <code>saaras:v3</code> · <code>sarvam‑105B</code> · <code>bulbul:v3</code></p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main>
+  <div class="card">
+    <div class="field-row">
+      <div>
+        <label>Phone</label>
+        <input id="phone" value="" placeholder="auto" />
+      </div>
+      <div>
+        <label>Language</label>
+        <select id="lang">
+          <option value="hi">हिन्दी · Hindi</option>
+          <option value="bn">বাংলা · Bengali</option>
+          <option value="ta">தமிழ் · Tamil</option>
+          <option value="mr">मराठी · Marathi</option>
+          <option value="en">English (India)</option>
+        </select>
+      </div>
+      <button id="reset" class="ghost" title="New phone number → new session">↻ New session</button>
+    </div>
+
+    <div class="mic-row">
+      <button id="rec" class="mic" title="Click to start; click again to send">🎤</button>
+      <div class="mic-hint">
+        <div class="big">Tap to speak</div>
+        <div id="status" class="status"><span class="dot"></span>tap the mic, speak, tap again to send</div>
+      </div>
+    </div>
+
+    <div class="type-row">
+      <input id="text" placeholder="…or type an answer and press Enter" />
+      <button id="send" class="primary">Send</button>
+    </div>
+  </div>
+
+  <div id="log">
+    <div class="empty">Your conversation will appear here.</div>
+  </div>
+    </main>
+
+    <aside class="profile" id="profileCard">
+      <h2>Beneficiary profile</h2>
+      <p class="caption">Captured from what you've said so far.</p>
+      <div class="progress"><div id="progressBar"></div></div>
+
+      <div class="section-label">Captured</div>
+      <ul class="slots" id="filledList">
+        <li class="pending"><span class="dash"></span><span class="slot-name">Nothing yet</span><span></span></li>
+      </ul>
+
+      <div class="section-label">Still needed</div>
+      <ul class="slots" id="pendingList"></ul>
+    </aside>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const log = $("#log");
+let hasTurns = false;
+
+function el(html) {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+
+function addTurn(userTxt, resp) {
+  if (!hasTurns) { log.innerHTML = ""; hasTurns = true; }
+  // Only reveal the top-3 recommendations at the end of the interview;
+  // during the Q&A they'd just be noise that changes every turn.
+  const top3 = (resp.done && Array.isArray(resp.top3) ? resp.top3 : []).map(t => `
+    <li>
+      <span></span>
+      <div>
+        <div class="role-name">${t.job_role || t.qualification_name || t.qp_code || 'Pathway'}</div>
+        <span class="qp">${t.qp_code || ''} · ${t.sector || ''}</span>
+      </div>
+      <div>${t.nsqf_level ? `<span class="pill level">NSQF ${t.nsqf_level}</span>` : ''}</div>
+    </li>`).join("");
+
+  const showTranscript = resp.transcript && resp.transcript !== userTxt;
+  const said = userTxt || (resp.transcript ? '' : '<em style="color:var(--muted)">(audio)</em>');
+
+  const turn = el(`
+    <div class="turn">
+      <div class="said">
+        <span class="role">You said</span>
+        <div>${said}${showTranscript ? '' : ''}</div>
+      </div>
+      ${showTranscript ? `<div class="transcript">↳ ${resp.transcript}</div>` : ''}
+      ${resp.reply_text ? `
+        <div class="heard">
+          <span class="role">Setu</span>
+          <div class="reply-text">${resp.reply_text}</div>
+        </div>` : ''}
+      ${top3 ? `<ol class="top3">${top3}</ol>` : ''}
+      ${resp.reply_audio_url ? `<audio controls autoplay src="${resp.reply_audio_url}"></audio>` : ''}
+      ${resp.done ? `<div class="done-note">Session complete · recommendation ${resp.recommendation_id || ''}</div>` : ''}
+    </div>
+  `);
+  log.prepend(turn);
+}
+
+function setStatus(text, rec=false) {
+  const s = $("#status");
+  s.className = "status" + (rec ? " rec" : "");
+  s.innerHTML = `<span class="dot"></span>${text}`;
+}
+
+const SLOT_ORDER = [
+  ["name",            "Name"],
+  ["home_district",   "District"],
+  ["age",             "Age"],
+  ["education_class", "Education"],
+  ["aspiration",      "Work preference"],
+  ["interests",       "Interests"],
+  ["mobility_km",     "Travel range"],
+  ["has_smartphone",  "Smartphone"],
+  ["self_employ_ok",  "Self-employment"],
+  ["social_category", "Category"],
+];
+
+function fmtVal(k, v) {
+  if (v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) return null;
+  if (k === "age")             return v + " yrs";
+  if (k === "education_class") return "Class " + v;
+  if (k === "mobility_km")     return v + " km";
+  if (k === "has_smartphone")  return v ? "Yes" : "Basic";
+  if (k === "self_employ_ok")  return v ? "Open" : "Prefers job";
+  if (Array.isArray(v))        return v.join(", ");
+  return String(v);
+}
+
+function renderProfile(profile) {
+  const filledUl  = document.getElementById("filledList");
+  const pendingUl = document.getElementById("pendingList");
+  const bar       = document.getElementById("progressBar");
+
+  const p = profile || {};
+  let filledHtml = "", pendingHtml = "", filledCount = 0;
+
+  for (const [k, label] of SLOT_ORDER) {
+    const val = fmtVal(k, p[k]);
+    if (val !== null) {
+      filledCount++;
+      filledHtml += `<li class="filled">
+        <span class="tick"></span>
+        <span class="slot-name">${label}</span>
+        <span class="slot-val" title="${val}">${val}</span>
+      </li>`;
+    } else {
+      pendingHtml += `<li class="pending">
+        <span class="dash"></span>
+        <span class="slot-name">${label}</span>
+        <span></span>
+      </li>`;
+    }
+  }
+
+  filledUl.innerHTML  = filledHtml  || `<li class="pending"><span class="dash"></span><span class="slot-name">Nothing yet</span><span></span></li>`;
+  pendingUl.innerHTML = pendingHtml || `<li class="filled"><span class="tick"></span><span class="slot-name">All captured</span><span></span></li>`;
+  bar.style.width = Math.round((filledCount / SLOT_ORDER.length) * 100) + "%";
+}
+
+// Give every page load a unique phone so we start with an empty beneficiary
+// row (an existing phone would resume its prior interview and pre-fill fields).
+function freshPhone() {
+  const t = Date.now().toString();
+  return "9" + t.slice(-9);
+}
+document.getElementById("phone").value = freshPhone();
+
+async function sendForm(formData, userTxt) {
+  setStatus("thinking…");
+  try {
+    const r = await fetch("/voice/converse", { method: "POST", body: formData });
+    const ct = r.headers.get("content-type") || "";
+    if (!r.ok || !ct.includes("application/json")) {
+      const body = await r.text();
+      const snippet = body.replace(/<[^>]+>/g, " ").trim().slice(0, 120);
+      addTurn(userTxt, {
+        reply_text: `Server hiccup (${r.status}). Tap the mic and try again.`,
+        transcript: userTxt,
+      });
+      setStatus("server error: " + (snippet || r.status));
+      return;
+    }
+    const j = await r.json();
+    addTurn(userTxt, j);
+    if (j.profile !== undefined) renderProfile(j.profile);
+    setStatus(j.done ? "session complete" : "idle · tap mic or type to answer");
+  } catch (e) {
+    setStatus("network error: " + e.message);
+  }
+}
+
+renderProfile(null);
+
+$("#send").onclick = () => {
+  const t = $("#text").value.trim();
+  if (!t) return;
+  const fd = new FormData();
+  fd.append("phone", $("#phone").value);
+  fd.append("language", $("#lang").value);
+  fd.append("text", t);
+  $("#text").value = "";
+  sendForm(fd, t);
+};
+$("#text").addEventListener("keydown", e => { if (e.key === "Enter") $("#send").click(); });
+
+$("#reset").onclick = () => {
+  $("#phone").value = freshPhone();
+  log.innerHTML = '<div class="empty">Your conversation will appear here.</div>';
+  hasTurns = false;
+  renderProfile(null);
+  setStatus("new session");
+};
+
+// Mic recording — click to start, click again to send
+let mediaRecorder = null;
+let chunks = [];
+let currentStream = null;
+const recBtn = $("#rec");
+
+async function startRec() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Mic API not available. Open this page via http://127.0.0.1:8000/ui/mic.html (localhost is a secure context).");
+    return;
+  }
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let mime = "";
+    for (const m of ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"]) {
+      if (MediaRecorder.isTypeSupported(m)) { mime = m; break; }
+    }
+    mediaRecorder = mime ? new MediaRecorder(currentStream, { mimeType: mime })
+                         : new MediaRecorder(currentStream);
+    chunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      recBtn.classList.remove("recording");
+      if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+      const type = mediaRecorder.mimeType || mime || "audio/webm";
+      const blob = new Blob(chunks, { type });
+      if (blob.size < 200) { setStatus("no audio captured — try again"); return; }
+      const ext = type.includes("ogg") ? "ogg" : type.includes("mp4") ? "m4a" : "webm";
+      const fd = new FormData();
+      fd.append("phone", $("#phone").value);
+      fd.append("language", $("#lang").value);
+      fd.append("audio", blob, "clip." + ext);
+      await sendForm(fd, "");
+    };
+    mediaRecorder.start(200);          // gather chunks every 200 ms
+    recBtn.classList.add("recording");
+    setStatus("● recording — tap the mic again to send", true);
+  } catch (e) {
+    setStatus("mic blocked: " + (e.message || e.name));
+    if (e.name === "NotAllowedError") {
+      alert("Chrome blocked the mic. Click the 🔒 icon in the address bar → Site settings → allow Microphone, then reload.");
+    }
+  }
+}
+
+function stopRec() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    try { mediaRecorder.requestData(); } catch (_) {}
+    mediaRecorder.stop();
+  }
+}
+
+recBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (mediaRecorder && mediaRecorder.state === "recording") stopRec();
+  else startRec();
+});
+</script>
+</body>
+</html>

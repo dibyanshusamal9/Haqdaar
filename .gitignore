@@ -1,0 +1,36 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+secrets/
+
+# Databases & Archives
+*.db
+*.sqlite
+*.sqlite3
+_to_delete/
+*.tar.gz
+*.zip
+
+# Dependencies & Builds
+node_modules/
+.next/
+dist/
+build/
+.turbo/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+ENV/
+
+# Logs & Caches
+*.log
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+
