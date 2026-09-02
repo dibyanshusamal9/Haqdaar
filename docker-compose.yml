@@ -1,4 +1,3 @@
-version: "3.9"
 # Local dev alternative to Supabase — spin a Postgres you can point DATABASE_URL at.
 # For real work, use a Supabase project in ap-south-1 (see README).
 services:
