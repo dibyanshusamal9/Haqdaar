@@ -256,16 +256,29 @@ def _sanitize(patch: dict, answer: str) -> dict:
         if not any(w in a for w in _SELF_EMPLOY):
             out.pop("self_employ_ok", None)
 
-    # interests: drop items the speaker never said
+    # interests: keep known items whose keyword appears in the answer,
+    # PLUS any free-text interest the speaker literally said (short 1–3
+    # word phrase). This means "cricket coaching" or "food delivery" —
+    # things not in the whitelist — still become a real interest instead
+    # of being dropped.
     if "interests" in out and isinstance(out["interests"], list):
-        kept = []
+        kept: list[str] = []
         for item in out["interests"]:
-            item_l = str(item).lower()
+            item_l = str(item).lower().strip()
+            if not item_l:
+                continue
+            mapped = None
             for kw, canonical in _INTEREST_WORDS.items():
                 if kw in a and (canonical in item_l or kw in item_l):
-                    kept.append(canonical)
+                    mapped = canonical
                     break
-        out["interests"] = list(dict.fromkeys(kept))  # dedupe, preserve order
+            if mapped:
+                kept.append(mapped)
+            elif item_l in a and 2 <= len(item_l) <= 40:
+                # LLM extracted a phrase that literally appears in the
+                # answer — trust it as free-text interest.
+                kept.append(item_l)
+        out["interests"] = list(dict.fromkeys(kept))
         if not out["interests"]:
             out.pop("interests", None)
 
@@ -348,6 +361,18 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
         p.setdefault("mobility_km", 50)
         p.setdefault("aspiration", "in the city")
     # aspirations & interests
+    # Free-text fallback — if the question was clearly the interests one and
+    # the answer is a short phrase we don't otherwise recognise, capture it
+    # verbatim so the beneficiary's actual interest ("cricket coach",
+    # "food delivery", "carpenter") isn't dropped on the floor.
+    q_int = (question or "").lower()
+    is_interests_q = any(k in q_int for k in ("interest", "रुचि", "आवडत", "வேலைகள்", "কাজে"))
+    if is_interests_q:
+        cleaned = re.sub(r"[.,!?।]", " ", answer).strip()
+        words = cleaned.split()
+        if 1 <= len(words) <= 5 and cleaned:
+            p.setdefault("interests", []).append(cleaned[:60])
+
     for kw, sector in [("weav", "handloom"), ("बुनाई", "handloom"), ("handloom", "handloom"),
                        ("phone repair", "telecom"), ("mobile repair", "telecom"),
                        ("electric", "electronics"), ("बिजली", "electronics"), ("solar", "electronics"),
