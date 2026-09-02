@@ -62,27 +62,25 @@ on conflict (qp_code) do nothing;
 insert into demand_signals
   (district, state, sector, qp_code, role_title, vacancies_90d, source_url, evidence_date)
 values
-  ('Nalanda',   'Apparel',           'AMH/Q1001', 180, 'https://www.ncs.gov.in','2026-08-31'),
-  ('Nalanda',   'Apparel',           'AMH/Q1002', 90,  'https://www.ncs.gov.in','2026-08-31'),
-  ('Nalanda',   'Handloom',          'HSS/Q0106', 65,  'https://handlooms.nic.in','2026-08-31'),
-  ('Nalanda',   'Retail',            'RAS/Q0103', 140, 'https://www.ncs.gov.in','2026-08-31'),
-  ('Nalanda',   'Beauty & Wellness', 'BWS/Q0202', 75,  'https://www.ncs.gov.in','2026-08-31'),
-  ('Nalanda',   'Beauty & Wellness', 'BWS/Q0301', 55,  'https://www.ncs.gov.in','2026-08-31'),
-  ('Nalanda',   'Agriculture',       'AGR/Q4101', 120, 'https://asci-india.com','2026-08-31'),
-  ('Nalanda',   'Construction',      'CON/Q0104', 200, 'https://www.ncs.gov.in','2026-08-31'),
-  ('Nalanda',   'Healthcare',        'HSS/Q5101', 60,  'https://www.ncs.gov.in','2026-08-31'),
-
-  ('Bhagalpur', 'Handloom',          'HSS/Q0106', 220, 'https://handlooms.nic.in','2026-08-31'),
-  ('Bhagalpur', 'Handloom',          'HSS/Q6303', 100, 'https://handlooms.nic.in','2026-08-31'),
-  ('Bhagalpur', 'Apparel',           'AMH/Q0104', 130, 'https://www.ncs.gov.in','2026-08-31'),
-  ('Bhagalpur', 'Retail',            'RAS/Q0105', 90,  'https://www.ncs.gov.in','2026-08-31'),
-  ('Bhagalpur', 'Automotive',        'ASC/Q1402', 85,  'https://asdc.org.in','2026-08-31'),
-
-  ('Jhabua',    'Agriculture',       'AGR/Q1001', 110, 'https://asci-india.com','2026-08-31'),
-  ('Jhabua',    'Agriculture',       'AGR/Q7601', 95,  'https://asci-india.com','2026-08-31'),
-  ('Jhabua',    'Food Processing',   'FIC/Q5002', 70,  'https://www.ficsi.in','2026-08-31'),
-  ('Jhabua',    'Construction',      'CON/Q0202', 150, 'https://www.ncs.gov.in','2026-08-31'),
-  ('Jhabua',    'Beauty & Wellness', 'BWS/Q0102', 40,  'https://www.ncs.gov.in','2026-08-31')
+  ('Nalanda',   'Bihar',          'Apparel',           'AMH/Q1001','Sewing Machine Operator',    180, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Apparel',           'AMH/Q1002','Self-Employed Tailor',        90, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Handloom',          'HSS/Q0106','Handloom Weaver',             65, 'https://handlooms.nic.in','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Retail',            'RAS/Q0103','Retail Trainee Associate',   140, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Beauty & Wellness', 'BWS/Q0202','Assistant Hair Stylist',      75, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Beauty & Wellness', 'BWS/Q0301','Mehendi Artist',              55, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Agriculture',       'AGR/Q4101','Dairy Farmer',               120, 'https://asci-india.com','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Construction',      'CON/Q0104','Assistant Mason',            200, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Nalanda',   'Bihar',          'Healthcare',        'HSS/Q5101','General Duty Assistant',      60, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Bhagalpur', 'Bihar',          'Handloom',          'HSS/Q0106','Handloom Weaver',            220, 'https://handlooms.nic.in','2026-08-31'),
+  ('Bhagalpur', 'Bihar',          'Handloom',          'HSS/Q6303','Handloom Fabric Checker',    100, 'https://handlooms.nic.in','2026-08-31'),
+  ('Bhagalpur', 'Bihar',          'Apparel',           'AMH/Q0104','Hand Embroiderer',           130, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Bhagalpur', 'Bihar',          'Retail',            'RAS/Q0105','Retail Cashier',              90, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Bhagalpur', 'Bihar',          'Automotive',        'ASC/Q1402','Two-Wheeler Technician',      85, 'https://asdc.org.in','2026-08-31'),
+  ('Jhabua',    'Madhya Pradesh', 'Agriculture',       'AGR/Q1001','Small Poultry Farmer',       110, 'https://asci-india.com','2026-08-31'),
+  ('Jhabua',    'Madhya Pradesh', 'Agriculture',       'AGR/Q7601','Vegetable Cultivator',        95, 'https://asci-india.com','2026-08-31'),
+  ('Jhabua',    'Madhya Pradesh', 'Food Processing',   'FIC/Q5002','Food Processing Operator',    70, 'https://www.ficsi.in','2026-08-31'),
+  ('Jhabua',    'Madhya Pradesh', 'Construction',      'CON/Q0202','Bar Bender',                 150, 'https://www.ncs.gov.in','2026-08-31'),
+  ('Jhabua',    'Madhya Pradesh', 'Beauty & Wellness', 'BWS/Q0102','Assistant Beauty Therapist',  40, 'https://www.ncs.gov.in','2026-08-31')
 on conflict do nothing;
 
 
