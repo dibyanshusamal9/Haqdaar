@@ -142,12 +142,15 @@ def _guess_district(answer: str, question: str = "") -> str | None:
     return None
 
 
-def _extract_name(answer: str) -> str | None:
-    """Pull a personal name from short answers: 'Radha', 'my name is Radha',
-    'mera naam Radha hai', 'मेरा नाम राधा है'."""
+def _extract_name(answer: str, was_name_q: bool = False) -> str | None:
+    """Pull a personal name. Phrase forms ('my name is X') work anywhere;
+    bare short answers ('Radha') are ONLY accepted when the last question was
+    actually asking for the name — otherwise 'mobile repair' would masquerade."""
     a = (answer or "").strip().strip(".!?।")
     if not a:
         return None
+
+    # Phrase forms — always accepted
     for pat in (r"my name is\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
                 r"i am\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
                 r"mera naam\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
@@ -159,6 +162,10 @@ def _extract_name(answer: str) -> str | None:
             n = _clean_name(m.group(1))
             if n:
                 return n
+
+    if not was_name_q:
+        return None
+
     # Bare short answer of 1–3 words with no digits → treat as a name
     words = re.findall(r"[A-Za-zऀ-ॿ]+", a)
     if 1 <= len(words) <= 3 and not re.search(r"\d", a):
@@ -228,12 +235,13 @@ def _sanitize(patch: dict, answer: str) -> dict:
         if not m or not (10 <= int(m.group(1)) <= 80):
             out.pop("age", None)
 
-    # education_class: only if a class hint is present (digit OR word form)
+    # education_class: only if a class hint is present (digit OR word form OR bare number)
     if "education_class" in out:
         digit_ok = re.search(r"class\s*\d{1,2}|\b\d{1,2}\s*(th|वीं|कक्षा|pass|पास|standard|std)", a)
         word_ok  = re.search(r"\b(tenth|eleventh|twelfth|eighth|ninth|seventh|sixth|fifth|"
                              r"बारह|दस|आठ|graduate|स्नातक|diploma|डिप्लोमा|matric|inter)\b", a)
-        if not (digit_ok or word_ok):
+        bare_ok  = re.fullmatch(r"\s*\d{1,2}\s*", a)  # a lone number as an answer
+        if not (digit_ok or word_ok or bare_ok):
             out.pop("education_class", None)
 
     # has_smartphone: only if the text talks about a phone
@@ -288,8 +296,8 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
     p: dict[str, Any] = {"language": language}
     # name — only when the question was about the person's name
     q = (question or "").lower()
-    if "name" in q or "नाम" in q or "पेयर" in q or "பெயர்" in q or "নাম" in q:
-        name = _extract_name(answer)
+    if any(k in q for k in ("name?", "your name", "नाम क्या", "பெயர் என்ன", "নাম কী", "नाव काय")):
+        name = _extract_name(answer, was_name_q=True)
         if name:
             p["name"] = name
     # age — accept "22 saal", "22 years", or a bare small integer when asked about age
@@ -315,6 +323,13 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
         if re.search(rf"\b{w}\b", a):
             p.setdefault("education_class", cls)
             break
+    # Bare number in an education context — the last question tells us
+    if "education_class" not in p:
+        q_low2 = (question or "").lower()
+        if any(k in q_low2 for k in ("class", "studied", "education", "कक्षा", "पढ़ाई", "শ্রেণ", "வகுப்பு")):
+            m3 = re.fullmatch(r"\s*(\d{1,2})\s*", a)
+            if m3 and 1 <= int(m3.group(1)) <= 15:
+                p["education_class"] = int(m3.group(1))
     # smartphone
     if any(w in a for w in ["smartphone", "स्मार्टफोन", "android"]):
         p["has_smartphone"] = True
