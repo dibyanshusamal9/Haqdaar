@@ -238,8 +238,8 @@ _REASK_HINTS = {
                         "hi": "क्या आपके पास स्मार्टफोन है या साधारण फोन?"},
     "self_employ_ok":  {"en": "Would you prefer your own work / shop, or a salaried job?",
                         "hi": "आप अपना काम / दुकान चाहेंगे, या नौकरी?"},
-    "aspiration":      {"en": "What kind of work would you like — close to home, or in the city?",
-                        "hi": "आप कैसा काम चाहेंगे — घर के पास, या शहर में?"},
+    "aspiration":      {"en": "Got it. And would you rather work close to home, or in the city?",
+                        "hi": "ठीक है। और आप काम घर के पास करना चाहेंगी, या शहर में?"},
     "social_category": {"en": "Please say one: SC, ST, OBC, or General.",
                         "hi": "कृपया एक बताएँ: SC, ST, OBC, या सामान्य।"},
 }

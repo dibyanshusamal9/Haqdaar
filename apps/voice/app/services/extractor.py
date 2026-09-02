@@ -173,13 +173,21 @@ def _extract_name(answer: str, was_name_q: bool = False) -> str | None:
     if not a:
         return None
 
-    # Phrase forms — always accepted
-    for pat in (r"my name is\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
-                r"i am\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
-                r"mera naam\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
-                r"मेरा नाम\s+([\wऀ-ॿ\s]{1,40})",
-                r"என் பெயர்\s+([\wऀ-ॿ\s]{1,40})",
-                r"আমার নাম\s+([\wऀ-ॿ\s]{1,40})"):
+    # Phrase forms — always accepted, wherever they appear in the sentence.
+    # Capture is non-greedy and stops at a digit or a boundary word, so
+    # "im nidhish 19 saal ka from panchkula" yields "nidhish", not the
+    # whole tail of the sentence.
+    for pat in (r"my name is\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"\bname\s+is\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"\bi\s*['’]?\s*m\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",   # i'm / im / i m
+                r"\bi\s+am\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"\bmyself\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"\bthis\s+is\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"mera naam\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"मेरा नाम\s+([\wऀ-ॿ\s]*)",
+                r"माझं नाव\s+([\wऀ-ॿ\s]*)",
+                r"என் பெயர்\s+([\wऀ-ॿ\s]*)",
+                r"আমার নাম\s+([\wऀ-ॿ\s]*)"):
         m = re.search(pat, a, re.IGNORECASE)
         if m:
             n = _clean_name(m.group(1))
@@ -198,13 +206,38 @@ def _extract_name(answer: str, was_name_q: bool = False) -> str | None:
     return None
 
 
+# Words that end a name inside a longer sentence. "im nidhish 19 saal ka from
+# panchkula" must yield "Nidhish", not the whole remainder.
+_NAME_STOP_WORDS = {
+    "from", "of", "and", "age", "aged", "years", "year", "yrs", "old",
+    "saal", "varsh", "ka", "ki", "ke", "se", "hu", "hun", "hai", "he",
+    "living", "live", "lives", "studying", "studied", "class", "pass",
+    "साल", "वर्ष", "से", "है", "हूं", "हूँ", "का", "की", "के",
+    "বছর", "থেকে", "வயது", "இருந்து",
+}
+
+
 def _clean_name(s: str) -> str | None:
     s = re.sub(r"\b(is|hai|hu|hun|call me|me|my)\b", "", s, flags=re.IGNORECASE).strip()
     s = s.strip(" ,.!?।")
-    if not s or len(s) < 2:
+    if not s:
         return None
-    parts = s.split()[:3]
-    return " ".join(p.capitalize() if p.isascii() else p for p in parts)
+
+    # Cut the moment we hit a digit or a boundary word — everything after it
+    # belongs to another fact (age, district, education), not the name.
+    parts: list[str] = []
+    for tok in s.split():
+        bare = tok.strip(" ,.!?।'\"").lower()
+        if not bare or any(ch.isdigit() for ch in bare) or bare in _NAME_STOP_WORDS:
+            break
+        parts.append(tok.strip(" ,.!?।"))
+        if len(parts) == 3:          # a name is at most three words
+            break
+    if not parts:
+        return None
+
+    out = " ".join(p.capitalize() if p.isascii() else p for p in parts)
+    return out if len(out) >= 2 else None
 
 
 def _clean_place(s: str) -> str | None:
@@ -524,12 +557,16 @@ def _any_word(text: str, words) -> bool:
 def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
     a = answer.lower()
     p: dict[str, Any] = {"language": language}
-    # name — only when the question was about the person's name
+    # name — phrase forms ("i'm Nidhish", "mera naam ...") are recognised on
+    # ANY turn so a name volunteered in the opening sentence is not lost; a
+    # bare answer ("Nidhish") is only treated as a name when we actually asked
+    # for one, otherwise "mobile repair" would become someone's name.
     q = (question or "").lower()
-    if any(k in q for k in ("name?", "your name", "नाम क्या", "பெயர் என்ன", "নাম কী", "नाव काय")):
-        name = _extract_name(answer, was_name_q=True)
-        if name:
-            p["name"] = name
+    was_name_q = any(k in q for k in
+                     ("name?", "your name", "नाम क्या", "பெயர் என்ன", "নাম কী", "नाव काय"))
+    name = _extract_name(answer, was_name_q=was_name_q)
+    if name:
+        p["name"] = name
     # age — "22 saal" / "22 years" / "बाईस साल" / "বাইশ বছর" / bare number in age context
     m = re.search(r"(\d{1,2})\s*(?:" + "|".join(map(re.escape, _AGE_UNITS)) + r")", a)
     if m and 10 <= int(m.group(1)) <= 80:
