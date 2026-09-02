@@ -73,11 +73,13 @@ create index if not exists qualification_modules_qp_idx
 UPSERT_QUAL = """
 insert into qualifications
     (qp_code, name, sector, nsqf_level, duration_hours, entry_min_class,
-     entry_min_age, mode, self_employment_track, source_url, evidence_date)
+     entry_min_age, mode, self_employment_track, source_url, evidence_date,
+     job_role, keywords)
 values
     (%(qp_code)s, %(name)s, %(sector)s, %(nsqf_level)s, %(duration_hours)s,
      %(entry_min_class)s, %(entry_min_age)s, %(mode)s,
-     %(self_employment_track)s, %(source_url)s, %(evidence_date)s)
+     %(self_employment_track)s, %(source_url)s, %(evidence_date)s,
+     %(job_role)s, %(keywords)s)
 on conflict (qp_code) do update set
     name           = excluded.name,
     sector         = excluded.sector,
@@ -87,7 +89,9 @@ on conflict (qp_code) do update set
     entry_min_age   = coalesce(excluded.entry_min_age,   qualifications.entry_min_age),
     mode           = excluded.mode,
     source_url     = excluded.source_url,
-    evidence_date  = excluded.evidence_date
+    evidence_date  = excluded.evidence_date,
+    job_role       = coalesce(excluded.job_role, qualifications.job_role),
+    keywords       = coalesce(excluded.keywords, qualifications.keywords)
 """
 
 
@@ -139,6 +143,23 @@ def main() -> int:
 
         for q in quals:
             sector = _sector(q.get("sector"))
+
+            # Everything searchable that isn't the name: the learning-module
+            # titles are the closest thing the corpus has to a skill list
+            # ("Hand Embroidery", "CCTV Camera", "LCD-LED TV"), so fold them
+            # into a keywords blob for full-text matching.
+            module_titles = [
+                r["title"] for r in src.execute(
+                    "select title from learning_modules where qual_id=? order by seq",
+                    (q["qual_id"],),
+                ).fetchall() if r["title"]
+            ]
+            keywords = " ".join(filter(None, [
+                q.get("subsector") or "",
+                q.get("category") or "",
+                " ".join(module_titles),
+            ])).strip() or None
+
             row = {
                 "qp_code":         _qp_code(q),
                 "name":            q["name"],
@@ -151,6 +172,8 @@ def main() -> int:
                 "self_employment_track": _self_employment(sector, q.get("name")),
                 "source_url":      q.get("source_url") or "https://www.nielit.in",
                 "evidence_date":   q.get("evidence_date") or "2026-09-02",
+                "job_role":        q.get("job_role"),
+                "keywords":        keywords,
             }
 
             # Cheap eligibility hint: look at first eligibility row's education
