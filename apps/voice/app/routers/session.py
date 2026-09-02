@@ -101,8 +101,12 @@ async def turn(inp: TurnIn) -> TurnOut:
                 return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
                                done=False, next_question=q_text)
 
-            # Progress: mark the asked field satisfied so pick_next won't loop on it.
-            _ASKED[s["id"]].add(asked_field)
+            # Progress: only mark the ASKED field as satisfied when the answer
+            # actually filled it, OR when we've already re-asked once. Otherwise
+            # a caller who answers "smartphone" to the category question would
+            # cause the category slot to be silently marked done.
+            if asked_field in useful or reask_marker in _ASKED[s["id"]]:
+                _ASKED[s["id"]].add(asked_field)
 
     # If we haven't yet obtained consent, gate.
     if "consent" not in _ASKED[s["id"]]:
@@ -124,9 +128,21 @@ async def turn(inp: TurnIn) -> TurnOut:
     s = bump_session(s["id"], top3, stable)
 
     reached_max = s["turn_count"] >= settings.interview_max_turns
-    # Don't converge early until we have at least district + interests/aspiration
-    has_min_profile = bool(b.get("home_district")) and bool(b.get("interests") or b.get("aspiration"))
-    if reached_max or (s["stable_streak"] >= settings.interview_stable_turns and has_min_profile and len(top3) >= 1):
+    # Cover EVERY question the interview asks — the panel says "STILL NEEDED"
+    # for these until they're filled, so the interview should not end while
+    # any of them is missing. Hard cap `interview_max_turns` still applies.
+    all_filled = (
+        bool(b.get("name"))
+        and bool(b.get("home_district"))
+        and b.get("age") is not None
+        and b.get("education_class") is not None
+        and bool(b.get("interests") or b.get("aspiration"))
+        and b.get("mobility_km") is not None
+        and b.get("has_smartphone") is not None
+        and b.get("self_employ_ok") is not None
+        and bool(b.get("social_category"))
+    )
+    if reached_max or (all_filled and len(top3) >= 1):
         return await _finish(b, s, top3, ranked, turn_no, t0, heard, patch_dict)
 
     # Pick next question

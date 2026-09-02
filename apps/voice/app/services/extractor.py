@@ -142,6 +142,29 @@ def _guess_district(answer: str, question: str = "") -> str | None:
     return None
 
 
+_WORD_TENS = {"twenty":20, "thirty":30, "forty":40, "fifty":50,
+              "sixty":60, "seventy":70, "eighty":80}
+_WORD_ONES = {"one":1,"two":2,"three":3,"four":4,"five":5,
+              "six":6,"seven":7,"eight":8,"nine":9}
+_WORD_TEENS = {"ten":10, "eleven":11, "twelve":12, "thirteen":13, "fourteen":14,
+               "fifteen":15, "sixteen":16, "seventeen":17, "eighteen":18, "nineteen":19}
+
+
+def _english_word_number(answer: str) -> int | None:
+    """Parse 'twenty two', 'thirty-five', 'nineteen' → integer."""
+    a = (answer or "").lower().replace("-", " ").strip()
+    if not a:
+        return None
+    if a in _WORD_TEENS:
+        return _WORD_TEENS[a]
+    if a in _WORD_TENS:
+        return _WORD_TENS[a]
+    parts = a.split()
+    if len(parts) == 2 and parts[0] in _WORD_TENS and parts[1] in _WORD_ONES:
+        return _WORD_TENS[parts[0]] + _WORD_ONES[parts[1]]
+    return None
+
+
 def _extract_name(answer: str, was_name_q: bool = False) -> str | None:
     """Pull a personal name. Phrase forms ('my name is X') work anywhere;
     bare short answers ('Radha') are ONLY accepted when the last question was
@@ -229,17 +252,22 @@ def _sanitize(patch: dict, answer: str) -> dict:
     if "mobility_km" in out and not any(h in a for h in _DISTANCE_HINTS):
         out.pop("mobility_km", None)
 
-    # age: only if a small integer is literally in the answer
+    # age: only if a small integer is literally in the answer (digit OR word form)
     if "age" in out:
         m = re.search(r"\b(\d{1,2})\b", a)
-        if not m or not (10 <= int(m.group(1)) <= 80):
+        digit_valid = m and 10 <= int(m.group(1)) <= 80
+        word_valid = _english_word_number(a) is not None
+        if not (digit_valid or word_valid):
             out.pop("age", None)
 
     # education_class: only if a class hint is present (digit OR word form OR bare number)
     if "education_class" in out:
         digit_ok = re.search(r"class\s*\d{1,2}|\b\d{1,2}\s*(th|वीं|कक्षा|pass|पास|standard|std)", a)
         word_ok  = re.search(r"\b(tenth|eleventh|twelfth|eighth|ninth|seventh|sixth|fifth|"
-                             r"बारह|दस|आठ|graduate|स्नातक|diploma|डिप्लोमा|matric|inter)\b", a)
+                             r"बारह|दस|आठ|graduate|undergraduate|postgraduate|bachelor|bachelors|"
+                             r"master|masters|b\.?tech|btech|b\.?e|b\.?sc|bsc|b\.?a|b\.?com|bcom|"
+                             r"mba|m\.?tech|mtech|phd|doctorate|"
+                             r"स्नातक|diploma|डिप्लोमा|polytechnic|iti|college|university|matric|inter)\b", a)
         bare_ok  = re.fullmatch(r"\s*\d{1,2}\s*", a)  # a lone number as an answer
         if not (digit_ok or word_ok or bare_ok):
             out.pop("education_class", None)
@@ -324,14 +352,29 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
             m2 = re.fullmatch(r"\s*(\d{1,2})\s*", a)
             if m2 and 10 <= int(m2.group(1)) <= 80:
                 p["age"] = int(m2.group(1))
+            # Word-form ages: "twenty two", "thirty five", ...
+            if "age" not in p:
+                word_age = _english_word_number(a)
+                if word_age is not None and 10 <= word_age <= 80:
+                    p["age"] = word_age
     # class
     m = re.search(r"class\s*(\d{1,2})|(\d{1,2})\s*(?:th|वीं|कक्षा|pass|पास|standard|std)", a)
     if m:
         p["education_class"] = int(next(g for g in m.groups() if g))
     word_class = {"fifth":5, "sixth":6, "seventh":7, "eighth":8, "ninth":9,
                   "tenth":10, "matric":10, "eleventh":11, "twelfth":12, "inter":12,
-                  "graduate":15, "स्नातक":15, "diploma":13, "डिप्लोमा":13,
-                  "बारह":12, "दस":10, "आठ":8}
+                  # college / university / diploma variants — a common source
+                  # of "why didn't it capture my education?" bugs
+                  "undergraduate": 15, "postgraduate": 16, "graduate": 15,
+                  "bachelor": 15, "bachelors": 15, "master": 16, "masters": 16,
+                  "b\\.tech": 15, "btech": 15, "b\\.e": 15, "be": 15,
+                  "b\\.sc": 15, "bsc": 15, "b\\.a": 15, "ba": 15,
+                  "b\\.com": 15, "bcom": 15, "mba": 16, "m\\.tech": 16, "mtech": 16,
+                  "phd": 17, "doctorate": 17,
+                  "diploma": 13, "polytechnic": 13, "iti": 12,
+                  "college": 15, "university": 15,
+                  "स्नातक": 15, "डिप्लोमा": 13,
+                  "बारह": 12, "दस": 10, "आठ": 8}
     for w, cls in word_class.items():
         if re.search(rf"\b{w}\b", a):
             p.setdefault("education_class", cls)
