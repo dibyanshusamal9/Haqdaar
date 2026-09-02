@@ -90,8 +90,24 @@ async def extract(question: str, answer: str, language: str) -> BeneficiaryPatch
     # Extract home_district from short place-name answers ONLY when the last
     # question was actually asking for the district (otherwise "weaving" or
     # "close to home" would masquerade as a place name).
+    #
+    # Extra guard: if any OTHER rule already recognised this answer as a
+    # concrete fact — an education word, an age, an interest — then it is not
+    # a place name, whatever question happened to be pending. Without this,
+    # a caller answering the district question with "दसवीं" (10th class) had
+    # "दसवीं" stored as their district, which then poisons demand matching.
     if "home_district" not in merged:
-        d = _guess_district(answer, question)
+        # Explicit phrases ("from X", "X se hun") are always trusted. A BARE
+        # answer is only a place name if no other rule already claimed this
+        # utterance as a concrete fact — otherwise a caller answering the
+        # district question with "दसवीं" (10th class) ends up with "दसवीं"
+        # stored as their district, which then poisons demand matching.
+        claimed_by_other_rule = any(
+            k in merged for k in
+            ("education_class", "education_note", "age", "interests",
+             "has_smartphone", "self_employ_ok", "social_category", "mobility_km")
+        )
+        d = _guess_district(answer, question, allow_bare=not claimed_by_other_rule)
         if d:
             merged["home_district"] = d
 
@@ -107,7 +123,7 @@ _STOPWORDS = {"i", "am", "the", "a", "an", "in", "at", "from", "of", "is",
               "please", "thanks", "namaste", "namaskar", "vanakkam"}
 
 
-def _guess_district(answer: str, question: str = "") -> str | None:
+def _guess_district(answer: str, question: str = "", allow_bare: bool = True) -> str | None:
     """Pull a home district from 'I live in X' / 'I am from X' phrasings, or,
     when the last question was clearly about the district, from a bare short
     answer. Otherwise return None — a random short answer must NOT be treated
@@ -117,17 +133,27 @@ def _guess_district(answer: str, question: str = "") -> str | None:
         return None
 
     # Phrase forms — always accepted, wherever they appear
-    for pat in (r"\blive[s]?\s+in\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
-                r"\bfrom\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
-                r"\brehti\s+hun\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})",
-                r"([A-Za-zऀ-ॿ][\wऀ-ॿ\s]{1,40})\s+mein\s+rehti"):
+    for pat in (r"\blive[s]?\s+in\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"\bfrom\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"\bbelong\s+to\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"\brehti\s+hun\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*)",
+                r"([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*?)\s+mein\s+rehti",
+                # "main Nalanda se hun" / "मैं नालंदा से हूं" — X + se/से
+                r"\bmain\s+([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*?)\s+se\b",
+                r"मैं\s+([\wऀ-ॿ\s]*?)\s+से",
+                r"([A-Za-zऀ-ॿ][\wऀ-ॿ\s]*?)\s+से\s+ह",
+                r"আমি\s+([\wऀ-ॿ\s]*?)\s+থেকে",
+                r"நான்\s+([\wऀ-ॿ\s]*?)\s+இருந்து"):
         m = re.search(pat, a, re.IGNORECASE)
         if m:
             place = _clean_place(m.group(1))
             if place:
                 return place
 
-    # Bare short answer only if the question was actually about district.
+    # Bare short answer only if the question was actually about district AND
+    # no other rule already claimed this utterance (see allow_bare).
+    if not allow_bare:
+        return None
     q = (question or "").lower()
     was_district_q = any(k in q for k in ("district", "ज़िले", "जिले", "जिला",
                                           "জেলা", "மாவட்ட", "जिल्हा"))
