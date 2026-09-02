@@ -563,10 +563,17 @@ const SLOT_ORDER = [
   ["social_category", "Category"],
 ];
 
-function fmtVal(k, v) {
+function fmtVal(k, v, profile) {
   if (v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) return null;
   if (k === "age")             return v + " yrs";
-  if (k === "education_class") return "Class " + v;
+  if (k === "education_class") {
+    // Prefer the natural phrase we captured ("Third Year college", "Diploma",
+    // "Class 10") over the raw NSQF integer.
+    if (profile && profile.education_note) return profile.education_note;
+    if (v >= 15)                return "College / graduate";
+    if (v === 13 || v === 14)  return "Diploma / ITI";
+    return "Class " + v;
+  }
   if (k === "mobility_km")     return v + " km";
   if (k === "has_smartphone")  return v ? "Yes" : "Basic";
   if (k === "self_employ_ok")  return v ? "Open" : "Prefers job";
@@ -583,7 +590,7 @@ function renderProfile(profile) {
   let filledHtml = "", pendingHtml = "", filledCount = 0;
 
   for (const [k, label] of SLOT_ORDER) {
-    const val = fmtVal(k, p[k]);
+    const val = fmtVal(k, p[k], p);
     if (val !== null) {
       filledCount++;
       filledHtml += `<li class="filled">

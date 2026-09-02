@@ -225,16 +225,53 @@ _SMARTPHONE_YES = ("smart", "स्मार्ट", "android", "एंड्र
 _SMARTPHONE_NO  = ("basic", "keypad", "feature phone", "फीचर", "सामान्य फोन", "साधा फोन")
 _SELF_EMPLOY    = ("own work", "own business", "apna kaam", "khud ka", "अपना काम",
                    "स्वयं", "shop", "दुकान", "business", "व्यवसाय", "self")
+# SINGLE multilingual keyword → sector table. Used by BOTH the rule-based
+# extractor and the grounding sanitizer — keeping them in one place stops the
+# two drifting apart (a Marathi answer like "शिवणकाम" was being captured by the
+# rules and then thrown away by a sanitizer that had never heard of it).
 _INTEREST_WORDS = {
-    "tailor": "apparel", "silai": "apparel", "सिलाई": "apparel", "sewing": "apparel",
-    "embroid": "apparel", "बुनाई": "handloom", "weav": "handloom", "handloom": "handloom",
-    "mobile": "telecom", "phone repair": "telecom",
-    "beauty": "beauty & wellness", "makeup": "beauty & wellness", "mehendi": "beauty & wellness",
-    "dairy": "agriculture", "दूध": "agriculture", "poultry": "agriculture", "kheti": "agriculture",
-    "mason": "construction", "mistri": "construction", "बिजली": "electronics",
-    "electric": "electronics", "solar": "electronics",
-    "retail": "retail", "shop": "retail", "दुकान": "retail",
-    "welder": "construction", "plumber": "construction",
+    # apparel / tailoring
+    "tailor": "apparel", "silai": "apparel", "sewing": "apparel", "sew": "apparel",
+    "embroid": "apparel", "stitch": "apparel",
+    "सिलाई": "apparel", "शिवणकाम": "apparel", "कढ़ाई": "apparel", "दर्जी": "apparel",
+    "সেলাই": "apparel", "তৈরি পোশাক": "apparel",
+    "தையல்": "apparel",
+    # handloom / weaving
+    "weav": "handloom", "handloom": "handloom", "loom": "handloom",
+    "बुनाई": "handloom", "विणकाम": "handloom", "बुनकर": "handloom",
+    "বুনন": "handloom", "তাঁত": "handloom",
+    "நெசவு": "handloom",
+    # telecom / mobile repair
+    "mobile repair": "telecom", "phone repair": "telecom", "mobile": "telecom",
+    "मोबाइल रिपेयर": "telecom", "मोबाईल दुरुस्ती": "telecom", "मोबाइल": "telecom",
+    "মোবাইল সারানো": "telecom", "মোবাইল": "telecom",
+    "மொபைல் ரிப்பேர்": "telecom", "மொபைல்": "telecom",
+    # electronics / electrical
+    "electric": "electronics", "solar": "electronics", "wiring": "electronics",
+    "बिजली": "electronics", "वीजकाम": "electronics", "इलेक्ट्रिक": "electronics",
+    "বৈদ্যুতিক": "electronics", "মিন்சார": "electronics", "மின்சார": "electronics",
+    # beauty & wellness
+    "beauty": "beauty & wellness", "makeup": "beauty & wellness",
+    "mehendi": "beauty & wellness", "hair": "beauty & wellness", "salon": "beauty & wellness",
+    "ब्यूटी": "beauty & wellness", "मेहंदी": "beauty & wellness", "पार्लर": "beauty & wellness",
+    "সাজসজ্জা": "beauty & wellness", "রূপচর্চা": "beauty & wellness",
+    "அழகு": "beauty & wellness",
+    # agriculture / dairy
+    "dairy": "agriculture", "poultry": "agriculture", "kheti": "agriculture",
+    "farming": "agriculture", "farmer": "agriculture", "crop": "agriculture",
+    "दूध": "agriculture", "खेती": "agriculture", "डेयरी": "agriculture", "शेती": "agriculture",
+    "দুধ": "agriculture", "কৃষি": "agriculture",
+    "பால்": "agriculture", "விவசாய": "agriculture",
+    # retail
+    "retail": "retail", "shop": "retail", "shopkeep": "retail", "store": "retail",
+    "दुकान": "retail", "दुकानदारी": "retail",
+    "দোকান": "retail", "கடை": "retail",
+    # construction
+    "mason": "construction", "mistri": "construction", "welder": "construction",
+    "plumber": "construction", "carpenter": "construction",
+    "राजमिस्त्री": "construction", "मिस्त्री": "construction", "गवंडी": "construction",
+    "সুতার": "construction", "রাজমিস্ত্রি": "construction",
+    "கொத்தனார்": "construction",
 }
 _CATEGORY_WORDS = {"sc": "SC", "st": "ST", "obc": "OBC", "gen": "GEN",
                    "general": "GEN", "अनुसूचित जाति": "SC", "अनुसूचित जनजाति": "ST"}
@@ -249,39 +286,50 @@ def _sanitize(patch: dict, answer: str) -> dict:
     out = dict(patch)
 
     # mobility_km: only if the text contains a distance signal
-    if "mobility_km" in out and not any(h in a for h in _DISTANCE_HINTS):
+    if "mobility_km" in out and not (
+        any(h in a for h in _DISTANCE_HINTS)
+        or _any(a, _NEAR_WORDS) or _any(a, _CITY_WORDS)
+    ):
         out.pop("mobility_km", None)
 
     # age: only if a small integer is literally in the answer (digit OR word form)
     if "age" in out:
         m = re.search(r"\b(\d{1,2})\b", a)
         digit_valid = m and 10 <= int(m.group(1)) <= 80
-        word_valid = _english_word_number(a) is not None
+        word_valid = (_english_word_number(a) is not None) or (_native_number(a) is not None)
         if not (digit_valid or word_valid):
             out.pop("age", None)
 
     # education_class: only if a class hint is present (digit OR word form OR bare number)
     if "education_class" in out:
         digit_ok = re.search(r"class\s*\d{1,2}|\b\d{1,2}\s*(th|वीं|कक्षा|pass|पास|standard|std)", a)
+        # ASCII terms keep \b; Indic terms use containment (see _word_hit).
         word_ok  = re.search(r"\b(tenth|eleventh|twelfth|eighth|ninth|seventh|sixth|fifth|"
-                             r"बारह|दस|आठ|graduate|undergraduate|postgraduate|bachelor|bachelors|"
+                             r"graduate|undergraduate|postgraduate|bachelor|bachelors|"
                              r"master|masters|b\.?tech|btech|b\.?e|b\.?sc|bsc|b\.?a|b\.?com|bcom|"
                              r"mba|m\.?tech|mtech|phd|doctorate|"
-                             r"स्नातक|diploma|डिप्लोमा|polytechnic|iti|college|university|matric|inter)\b", a)
+                             r"diploma|polytechnic|iti|college|university|matric|inter)\b", a) \
+                   or _any(a, ("बारह", "दस", "आठ", "स्नातक", "डिप्लोमा"))
+        # Also "first/second/third/final year" — clearly a college/uni answer
+        year_ok  = re.search(r"\b(first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\b", a)
+        # Native-script class answers ("दसवीं", "দশম শ্রেণী", "பத்தாம் வகுப்பு")
+        native_ok = _any(a, _CLASS_UNITS) or (_native_number(a) is not None)
         bare_ok  = re.fullmatch(r"\s*\d{1,2}\s*", a)  # a lone number as an answer
-        if not (digit_ok or word_ok or bare_ok):
+        if not (digit_ok or word_ok or year_ok or bare_ok or native_ok):
             out.pop("education_class", None)
 
     # has_smartphone: only if the text talks about a phone
     if "has_smartphone" in out:
-        if out["has_smartphone"] and not any(w in a for w in _SMARTPHONE_YES):
+        if out["has_smartphone"] and not (_any(a, _SMARTPHONE_YES) or _any(a, _SMART_YES)):
             out.pop("has_smartphone", None)
-        elif out["has_smartphone"] is False and not any(w in a for w in _SMARTPHONE_NO):
+        elif out["has_smartphone"] is False and not (_any(a, _SMARTPHONE_NO) or _any(a, _SMART_NO)):
             out.pop("has_smartphone", None)
 
-    # self_employ_ok: needs a self-employment keyword
-    if "self_employ_ok" in out and out["self_employ_ok"]:
-        if not any(w in a for w in _SELF_EMPLOY):
+    # self_employ_ok: needs a self-employment OR salaried-job keyword
+    if "self_employ_ok" in out:
+        if out["self_employ_ok"] and not (_any(a, _SELF_EMPLOY) or _any(a, _SELF_YES)):
+            out.pop("self_employ_ok", None)
+        elif out["self_employ_ok"] is False and not _any(a, _SELF_NO):
             out.pop("self_employ_ok", None)
 
     # interests: keep known items whose keyword appears in the answer,
@@ -318,17 +366,158 @@ def _sanitize(patch: dict, answer: str) -> dict:
         else:
             # ensure the text actually mentions it as a word (not just letters inside "namaste")
             hit = re.search(r"\b(sc|st|obc|gen|general)\b", a) or \
-                  ("अनुसूचित जाति" in a) or ("अनुसूचित जनजाति" in a) or ("पिछड़ा" in a)
+                  any(phrase in answer for phrase in _CATEGORY_NATIVE)
             if not hit:
                 out.pop("social_category", None)
 
     # aspiration: keep only if the answer talks about wanting/preferring work
+    # OR mentions a location preference ("close to home" / "in the city" / etc.)
     if "aspiration" in out:
-        if not re.search(r"want|would like|prefer|चाहती|चाहत|चाहूँ|kaam|काम|job|work|near|paas|shahar|city", a):
+        keyword_hit = re.search(
+            r"want|would like|prefer|चाहती|चाहत|चाहूँ|kaam|काम|job|work|"
+            r"near|nearby|paas|shahar|city|close|home|ghar|घर|शहर|यहीं|"
+            r"salary|salaried|naukri|नौकरी|চাকরি|কাজ|வேலை", a)
+        if not (keyword_hit or _any(a, _NEAR_WORDS) or _any(a, _CITY_WORDS)
+                or _any(a, _SELF_YES) or _any(a, _SELF_NO)):
             out.pop("aspiration", None)
 
     # home_district: keep as-is (a place name is hard to hallucinate from typed input)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Multilingual keyword tables.
+#
+# The rule-based extractor is the ONLY extractor that always works (LLM
+# providers can be rate-limited, out of credit, or slow), and this product
+# is voice-first in Indian languages. So every rule below must recognise
+# Devanagari (hi/mr), Bengali (bn) and Tamil (ta) as well as romanised
+# transliteration — not just English.
+# ---------------------------------------------------------------------------
+
+# "near home" / short travel radius
+_NEAR_WORDS = (
+    # en / romanised
+    "near home", "close to home", "nearby", "close by", "near by", "walking distance",
+    "ghar ke paas", "paas hi", "gaon", "gaon me", "nazdeek",
+    # hi / mr (Devanagari)
+    "घर के पास", "घर के नज़दीक", "घर के नजदीक", "पास में", "पास ही", "यहीं",
+    "गाँव", "गांव", "जवळच", "घराजवळ", "जवळ", "नजीक",
+    # bn
+    "বাড়ির কাছে", "পাশেই", "কাছেই", "কাছে", "গ্রামে",
+    # ta
+    "வீட்டுக்கு அருகில்", "அருகில்", "பக்கத்தில்", "கிராமத்தில்",
+)
+# "in the city" / long travel radius
+_CITY_WORDS = (
+    "in the city", "in city", "city", "shahar", "shehar",
+    "शहर", "शहरात", "शहर में",
+    "শহরে", "শহর",
+    "நகரத்தில்", "நகரம்",
+)
+# smartphone yes / no
+_SMART_YES = (
+    "smart", "smartphone", "android", "iphone", "touch phone",
+    "स्मार्टफोन", "स्मार्ट फोन", "एंड्रॉइड", "एंड्राइड", "स्मार्टफोन आहे",
+    "স্মার্টফোন", "অ্যান্ড্রয়েড",
+    "ஸ்மார்ட்போன்", "ஆண்ட்ராய்டு",
+)
+_SMART_NO = (
+    "basic phone", "keypad", "feature phone", "simple phone", "button phone",
+    "फीचर फोन", "साधारण फोन", "साधा फोन", "कीपैड", "बटन वाला",
+    "সাধারণ ফোন", "কীপ্যাড", "বেসিক ফোন",
+    "சாதாரண போன்", "பட்டன் போன்",
+)
+# wants own work (self-employment)
+_SELF_YES = (
+    "own work", "own business", "own shop", "self employ", "self-employ",
+    "apna kaam", "khud ka", "khud ka kaam", "apni dukan", "business",
+    "अपना काम", "अपना व्यवसाय", "अपनी दुकान", "खुद का", "स्वयं का", "स्वतःचा",
+    "स्वतःचं काम", "व्यवसाय",
+    "নিজের কাজ", "নিজের ব্যবসা", "স্বনিযুক্তি", "নিজের দোকান",
+    "சொந்த வேலை", "சொந்த தொழில்", "சொந்தமாக",
+)
+# prefers a salaried job
+_SELF_NO = (
+    "salaried", "salary job", "salaried job", "a job", "naukri", "nokri",
+    # hi / mr — note both नौकरी (hi) and नोकरी (mr) spellings
+    "नौकरी", "नोकरी", "पगारी", "पगाराची नोकरी", "वेतन",
+    "চাকরি", "বেতনের চাকরি",
+    # ta — "சம்பள வேலை" (salaried work) only; bare "வேலை" just means "work"
+    # and collides with "சொந்த வேலை" (own work), so it must NOT appear here.
+    "சம்பள வேலை", "ஊதிய வேலை",
+)
+# social category (native-script forms)
+_CATEGORY_NATIVE = {
+    "अनुसूचित जाति": "SC", "अनुसूचित जनजाति": "ST", "पिछड़ा": "OBC", "सामान्य": "GEN",
+    "अनुसूचित जमात": "ST", "सर्वसाधारण": "GEN",
+    "তফসিলি জাতি": "SC", "তফসিলি উপজাতি": "ST", "সাধারণ": "GEN",
+    "பட்டியல் சாதி": "SC", "பட்டியல் பழங்குடி": "ST", "பொது": "GEN",
+}
+# age unit words (so "বাইশ বছর" / "இருபது வயது" are seen as an age answer)
+_AGE_UNITS = ("साल", "साला", "वर्ष", "वय", "बरस",
+              "বছর", "বয়স",
+              "வயது", "வருடம்",
+              "saal", "varsh", "years", "year", "yrs", "yr", "old")
+# education / class words
+_CLASS_UNITS = ("वीं", "कक्षा", "पास", "इयत्ता",
+                "শ্রেণী", "শ্রেণি", "ক্লাস", "পাস",
+                "வகுப்பு", "படித்த",
+                "class", "th", "standard", "std", "pass")
+
+# Devanagari / Bengali / Tamil number words → int (10-80 covers ages)
+_NATIVE_NUMBERS = {
+    # hi / mr
+    "दस": 10, "ग्यारह": 11, "बारह": 12, "तेरह": 13, "चौदह": 14, "पंद्रह": 15,
+    "सोलह": 16, "सत्रह": 17, "अठारह": 18, "उन्नीस": 19, "बीस": 20,
+    "इक्कीस": 21, "बाईस": 22, "तेईस": 23, "चौबीस": 24, "पच्चीस": 25,
+    "छब्बीस": 26, "सत्ताईस": 27, "अट्ठाईस": 28, "उनतीस": 29, "तीस": 30,
+    "पैंतीस": 35, "चालीस": 40, "पैंतालीस": 45, "पचास": 50, "साठ": 60,
+    "आठ": 8, "नौ": 9,
+    # bn
+    "দশ": 10, "এগারো": 11, "বারো": 12, "তেরো": 13, "চৌদ্দ": 14, "পনেরো": 15,
+    "ষোল": 16, "সতেরো": 17, "আঠারো": 18, "উনিশ": 19, "বিশ": 20,
+    "একুশ": 21, "বাইশ": 22, "তেইশ": 23, "চব্বিশ": 24, "পঁচিশ": 25,
+    "ত্রিশ": 30, "চল্লিশ": 40, "পঞ্চাশ": 50,
+    # ta
+    "பத்து": 10, "பதினைந்து": 15, "இருபது": 20, "இருபத்தி இரண்டு": 22,
+    "இருபத்தைந்து": 25, "முப்பது": 30, "நாற்பது": 40, "ஐம்பது": 50,
+}
+
+
+def _native_number(text: str) -> int | None:
+    """Find a Devanagari/Bengali/Tamil number word in the answer."""
+    t = (text or "").lower()
+    # longest match first so "बाईस" wins over "बीस" inside it
+    for word in sorted(_NATIVE_NUMBERS, key=len, reverse=True):
+        if word in t:
+            return _NATIVE_NUMBERS[word]
+    return None
+
+
+def _any(text: str, words) -> bool:
+    return any(w in text for w in words)
+
+
+def _word_hit(text: str, word: str) -> bool:
+    """Whole-word match that is safe for Indic scripts.
+
+    Python's ``\\b`` is defined between ``\\w`` and ``\\W``. Indic combining
+    marks (virama ``्``, matras ``ा``, chandrabindu ``ঁ``) are Unicode
+    categories Mn/Mc, which ``\\w`` does NOT include — so a pattern like
+    ``\\bह्याँ\\b`` can never match a word that *ends* in one of those marks.
+    For non-ASCII words we therefore fall back to plain containment, which
+    is what we want for scripts that don't use spaces the same way anyway.
+    """
+    if not word:
+        return False
+    if word.isascii():
+        return re.search(rf"\b{re.escape(word)}\b", text) is not None
+    return word in text
+
+
+def _any_word(text: str, words) -> bool:
+    return any(_word_hit(text, w) for w in words)
 
 
 # ----- Mock extractor: deterministic heuristics good enough for demo -----
@@ -341,26 +530,46 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
         name = _extract_name(answer, was_name_q=True)
         if name:
             p["name"] = name
-    # age — accept "22 saal", "22 years", or a bare small integer when asked about age
-    m = re.search(r"\b(\d{1,2})\s*(?:साल|साला|वर्ष|saal|varsh|years?|yrs?|yr|old)\b", a)
-    if m:
+    # age — "22 saal" / "22 years" / "बाईस साल" / "বাইশ বছর" / bare number in age context
+    m = re.search(r"(\d{1,2})\s*(?:" + "|".join(map(re.escape, _AGE_UNITS)) + r")", a)
+    if m and 10 <= int(m.group(1)) <= 80:
         p["age"] = int(m.group(1))
-    else:
-        # Bare number in an "age" context — the question tells us the topic.
+    if "age" not in p and _any(a, _AGE_UNITS):
+        # native-script number word next to an age unit ("बाईस साल")
+        n = _native_number(a)
+        if n is not None and 10 <= n <= 80:
+            p["age"] = n
+    if "age" not in p:
+        # Bare number / word-number in an "age" context — the question tells us the topic.
         q_low = (question or "").lower()
         if any(k in q_low for k in ("age", "how old", "उम्र", "वय", "বয়স", "வயது")):
             m2 = re.fullmatch(r"\s*(\d{1,2})\s*", a)
             if m2 and 10 <= int(m2.group(1)) <= 80:
                 p["age"] = int(m2.group(1))
-            # Word-form ages: "twenty two", "thirty five", ...
             if "age" not in p:
                 word_age = _english_word_number(a)
+                if word_age is None:
+                    word_age = _native_number(a)
                 if word_age is not None and 10 <= word_age <= 80:
                     p["age"] = word_age
-    # class
-    m = re.search(r"class\s*(\d{1,2})|(\d{1,2})\s*(?:th|वीं|कक्षा|pass|पास|standard|std)", a)
+    # class — "class 10" / "10th" / "१०वीं" / "দশম শ্রেণী" / "10 पास"
+    m = re.search(r"class\s*(\d{1,2})|(\d{1,2})\s*(?:" + "|".join(map(re.escape, _CLASS_UNITS)) + r")", a)
     if m:
         p["education_class"] = int(next(g for g in m.groups() if g))
+    if "education_class" not in p and _any(a, _CLASS_UNITS):
+        # native-script number word next to a class unit ("दशम श्रेणी", "দশম শ্রেণী")
+        native_class = {"पहली":1,"दूसरी":2,"तीसरी":3,"चौथी":4,"पांचवीं":5,"छठी":6,
+                        "सातवीं":7,"आठवीं":8,"नौवीं":9,"दसवीं":10,"ग्यारहवीं":11,"बारहवीं":12,
+                        "প্রথম":1,"পঞ্চম":5,"অষ্টম":8,"নবম":9,"দশম":10,"একাদশ":11,"দ্বাদশ":12,
+                        "ஐந்தாம்":5,"எட்டாம்":8,"ஒன்பதாம்":9,"பத்தாம்":10,"பன்னிரண்டாம்":12}
+        for w, cls in sorted(native_class.items(), key=lambda kv: -len(kv[0])):
+            if w in a:
+                p["education_class"] = cls
+                break
+        if "education_class" not in p:
+            n = _native_number(a)
+            if n is not None and 1 <= n <= 15:
+                p["education_class"] = n
     word_class = {"fifth":5, "sixth":6, "seventh":7, "eighth":8, "ninth":9,
                   "tenth":10, "matric":10, "eleventh":11, "twelfth":12, "inter":12,
                   # college / university / diploma variants — a common source
@@ -376,9 +585,27 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
                   "स्नातक": 15, "डिप्लोमा": 13,
                   "बारह": 12, "दस": 10, "आठ": 8}
     for w, cls in word_class.items():
-        if re.search(rf"\b{w}\b", a):
+        # regex-escaped keys like "b\\.tech" stay as patterns; plain words go
+        # through _word_hit so Indic entries aren't broken by \b (see helper).
+        pattern_key = "\\" in w
+        hit = re.search(rf"\b{w}\b", a) if pattern_key else _word_hit(a, w)
+        if hit:
             p.setdefault("education_class", cls)
             break
+    # Capture natural phrases for the officer/UI to see verbatim.
+    # "third year", "final year", "second year" — treat as college / graduate track.
+    m_year = re.search(r"\b(first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\b", a, re.IGNORECASE)
+    if m_year:
+        p.setdefault("education_class", 15)
+        p["education_note"] = f"{m_year.group(0).strip().title()} college"
+    elif re.search(r"\b(college|university|graduate|undergraduate)\b", a, re.IGNORECASE):
+        p.setdefault("education_note", "College / graduate")
+    elif re.search(r"\b(diploma|polytechnic|iti)\b", a, re.IGNORECASE):
+        p.setdefault("education_note", "Diploma / ITI")
+    elif re.search(r"(\d{1,2})\s*(?:th\b|वीं|pass\b|पास)", a, re.IGNORECASE):
+        n = re.search(r"(\d{1,2})", a)
+        if n:
+            p["education_note"] = f"Class {n.group(1)}"
     # Bare number in an education context — the last question tells us
     if "education_class" not in p:
         q_low2 = (question or "").lower()
@@ -386,21 +613,20 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
             m3 = re.fullmatch(r"\s*(\d{1,2})\s*", a)
             if m3 and 1 <= int(m3.group(1)) <= 15:
                 p["education_class"] = int(m3.group(1))
-    # smartphone
-    if any(w in a for w in ["smartphone", "स्मार्टफोन", "android"]):
-        p["has_smartphone"] = True
-    if any(w in a for w in ["basic phone", "फीचर फोन", "keypad"]):
+    # smartphone (multilingual)
+    if _any(a, _SMART_NO):
         p["has_smartphone"] = False
-    # mobility
-    m = re.search(r"(\d{1,3})\s*km", a)
+    elif _any(a, _SMART_YES):
+        p["has_smartphone"] = True
+    # mobility — explicit distance first
+    m = re.search(r"(\d{1,3})\s*(?:km|kms|kilomet\w*|किमी|किलोमीटर|কিলোমিটার|கிலோ\w*)", a)
     if m:
         p["mobility_km"] = int(m.group(1))
     # mobility keywords only — a bare place/district name should NOT set travel range.
-    if any(w in a for w in ["गाँव", "गांव", "near home", "close to home", "nearby",
-                            "यहीं", "ghar ke paas", "paas hi", "close by"]):
+    if _any(a, _NEAR_WORDS):
         p.setdefault("mobility_km", 5)
         p.setdefault("aspiration", "close to home")
-    if re.search(r"\b(city|shahar|शहर|in the city|in city)\b", a):
+    if _any(a, _CITY_WORDS):
         p.setdefault("mobility_km", 50)
         p.setdefault("aspiration", "in the city")
     # aspirations & interests
@@ -408,38 +634,44 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
     # the answer is a short phrase we don't otherwise recognise, capture it
     # verbatim so the beneficiary's actual interest ("cricket coach",
     # "food delivery", "carpenter") isn't dropped on the floor.
+    # NOTE: must NOT match the *aspiration* question, which in English reads
+    # "What kind of work would you like — close to home, or in the city?".
+    # Match on phrasing unique to the interests question instead.
     q_int = (question or "").lower()
-    is_interests_q = any(k in q_int for k in ("interest", "रुचि", "आवडत", "வேலைகள்", "কাজে"))
+    is_interests_q = any(k in q_int for k in (
+        "interests you", "work interests",     # en
+        "रुचि है", "रस आहे", "कामांत",          # hi / mr
+        "আগ্রহ",                                # bn
+        "ஆர்வம்",                               # ta
+    ))
     if is_interests_q:
         cleaned = re.sub(r"[.,!?।]", " ", answer).strip()
         words = cleaned.split()
         if 1 <= len(words) <= 5 and cleaned:
             p.setdefault("interests", []).append(cleaned[:60])
 
-    for kw, sector in [("weav", "handloom"), ("बुनाई", "handloom"), ("handloom", "handloom"),
-                       ("phone repair", "telecom"), ("mobile repair", "telecom"),
-                       ("electric", "electronics"), ("बिजली", "electronics"), ("solar", "electronics"),
-                       ("beauty", "beauty & wellness"), ("makeup", "beauty & wellness"),
-                       ("mehendi", "beauty & wellness"), ("hair", "beauty & wellness"),
-                       ("dairy", "agriculture"), ("दूध", "agriculture"), ("poultry", "agriculture"),
-                       ("sew", "apparel"), ("silai", "apparel"), ("सिलाई", "apparel"),
-                       ("tailor", "apparel"), ("embroid", "apparel"),
-                       ("retail", "retail"), ("shop", "retail"), ("दुकान", "retail"),
-                       ("mason", "construction"), ("mistri", "construction"),
-                       ("welder", "construction"), ("plumber", "construction")]:
+    # Sector interests — uses the SHARED _INTEREST_WORDS table so the
+    # sanitizer recognises exactly what we capture here.
+    for kw, sector in _INTEREST_WORDS.items():
         if kw in a:
             p.setdefault("interests", []).append(sector)
-    if "own work" in a or "own business" in a or "self" in a or "अपना काम" in a \
-       or "khud ka" in a or "व्यवसाय" in a or "business" in a:
+
+    # self-employment vs salaried job (multilingual). Check the "own work"
+    # side FIRST: its phrases are more specific ("சொந்த வேலை" contains the
+    # generic word for work, so a job-first check would misread it).
+    if _any(a, _SELF_YES):
         p["self_employ_ok"] = True
-    if "job" in a or "naukri" in a or "salary" in a or "salaried" in a or "नौकरी" in a:
+    elif _any(a, _SELF_NO):
         p["self_employ_ok"] = False
-    # category
-    for cat in ["SC", "ST", "OBC", "GEN"]:
-        if cat.lower() in a:
+
+    # category — English codes as whole words, plus native-script phrases
+    m_cat = re.search(r"\b(sc|st|obc|gen|general)\b", a)
+    if m_cat:
+        p["social_category"] = {"general": "GEN"}.get(m_cat.group(1), m_cat.group(1).upper())
+    for phrase, cat in _CATEGORY_NATIVE.items():
+        if phrase in answer:          # native scripts: match on the raw answer
             p["social_category"] = cat
-    if "अनुसूचित जाति" in a:
-        p["social_category"] = "SC"
+            break
     return p
 
 

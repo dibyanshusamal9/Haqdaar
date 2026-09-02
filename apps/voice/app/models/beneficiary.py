@@ -27,7 +27,8 @@ class BeneficiaryPatch(BaseModel):
     gender: Gender | None = None
     social_category: SocialCategory | None = None
     income_bracket: IncomeBracket | None = None
-    education_class: int | None = Field(default=None, ge=0, le=15)
+    education_class: int | None = Field(default=None, ge=0, le=17)
+    education_note: str | None = None
     literacy: str | None = None
     has_smartphone: bool | None = None
     interests: list[str] | None = None

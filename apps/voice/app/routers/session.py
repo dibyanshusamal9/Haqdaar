@@ -82,10 +82,7 @@ async def turn(inp: TurnIn) -> TurnOut:
                       if k != "language" and v not in (None, "", [])}
 
             if asked_field == "consent":
-                positive = re.search(
-                    r"\b(yes|yeah|yep|sure|ok|okay|haan|ha|jee|हाँ|हा|जी|হ্যাঁ|ஆம்|होय)\b",
-                    heard.lower(),
-                )
+                positive = _is_affirmative(heard)
                 if positive:
                     _ASKED[s["id"]].add("consent")
                     useful["__consented__"] = True
@@ -199,6 +196,25 @@ def _demand_ids_used(district: str | None, top3: list[dict]) -> list[str]:
         (district, codes),
     )
     return [str(r["id"]) for r in rows]
+
+
+# Affirmative words across the pilot languages. Indic entries are matched by
+# containment, NOT by a \b-anchored regex: Python's \b sits between \w and \W,
+# and Indic combining marks (virama, matras, chandrabindu) are Mn/Mc — not \w —
+# so \bহ্যাঁ\b can never match. That bug used to strand Bengali and Tamil
+# callers at the consent gate forever.
+_AFFIRMATIVE_ASCII = ("yes", "yeah", "yep", "yup", "sure", "ok", "okay",
+                      "haan", "han", "ha", "jee", "ji", "hoy", "aam", "aan")
+_AFFIRMATIVE_NATIVE = ("हाँ", "हा", "जी", "हां", "होय",          # hi / mr
+                       "হ্যাঁ", "হ্যা", "হাঁ", "জি",             # bn
+                       "ஆம்", "ஆமாம்", "சரி")                    # ta
+
+
+def _is_affirmative(text: str) -> bool:
+    t = (text or "").lower()
+    if any(re.search(rf"\b{w}\b", t) for w in _AFFIRMATIVE_ASCII):
+        return True
+    return any(w in text for w in _AFFIRMATIVE_NATIVE)
 
 
 def _rephrase(question: str) -> str:

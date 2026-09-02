@@ -53,7 +53,7 @@ async def converse(
     # Pull the freshest beneficiary row so the UI can show a live profile card.
     profile = None
     try:
-        rows = _q("select name, home_district, age, education_class, aspiration, "
+        rows = _q("select name, home_district, age, education_class, education_note, aspiration, "
                   "interests, mobility_km, has_smartphone, self_employ_ok, "
                   "social_category, language from beneficiaries where id=%s::uuid",
                   (out.beneficiary_id,))

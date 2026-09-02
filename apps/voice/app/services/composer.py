@@ -82,20 +82,55 @@ TEMPLATES = {
 }
 
 
-def render_template(top3: list[dict], language: str = "hi") -> str:
+def render_template(top3: list[dict], language: str = "hi",
+                    beneficiary: dict | None = None) -> str:
     t = TEMPLATES.get(language) or TEMPLATES["en"]
+
+    # If NONE of the top-3 has a known centre, tell the caller up front —
+    # the "— about — kilometres" phrasing was confusing.
+    have_any_centre = any(r.get("centre_name") for r in top3)
     lines = [t["intro"]]
+    if not have_any_centre:
+        district = (beneficiary or {}).get("home_district") or ""
+        no_centre_notes = {
+            "en": f"We don't have a training centre listed in your district ({district}) yet — these three are the best matches from the national NSQF catalogue, and a mobiliser will call to confirm the nearest option.",
+            "hi": f"अभी आपके ज़िले ({district}) में कोई प्रशिक्षण केंद्र दर्ज नहीं है — ये तीन राष्ट्रीय NSQF सूची से सबसे उपयुक्त हैं, नज़दीकी केंद्र की पुष्टि के लिए एक साथी आपको फ़ोन करेगा।",
+            "bn": f"আপনার জেলায় ({district}) এখনো কোনো প্রশিক্ষণ কেন্দ্র নথিভুক্ত নেই — জাতীয় NSQF তালিকা থেকে এই তিনটি সেরা মিল, নিকটতম কেন্দ্রের বিষয়ে একজন সমন্বয়ক ফোন করবেন।",
+            "ta": f"உங்கள் மாவட்டத்தில் ({district}) இன்னும் பயிற்சி மையம் பதிவு செய்யப்படவில்லை — தேசிய NSQF பட்டியலிலிருந்து இந்த மூன்று சிறந்த பொருத்தங்கள்.",
+            "mr": f"तुमच्या जिल्ह्यात ({district}) अजून प्रशिक्षण केंद्र नोंदलेले नाही — राष्ट्रीय NSQF सूचीतून हे तीन सर्वोत्तम पर्याय आहेत.",
+        }
+        lines.append(no_centre_notes.get(language, no_centre_notes["en"]))
+
     for i, r in enumerate(top3):
         reason_key = _reason_from_scores(r)
-        line = t["line"].format(
-            ord=t["ordinals"][min(i, 2)],
-            name=r.get("qualification_name") or r.get("qp_code") or "—",
-            sector=r.get("sector") or "—",
-            level=r.get("nsqf_level") or "—",
-            centre=r.get("centre_name") or "—",
-            km=r.get("distance_km") if r.get("distance_km") is not None else "—",
-            reason=t["reason_words"][reason_key],
-        )
+        centre = r.get("centre_name")
+        km_val = r.get("distance_km")
+        # Choose a per-row wording depending on whether we know a centre.
+        if centre and km_val is not None:
+            line = t["line"].format(
+                ord=t["ordinals"][min(i, 2)],
+                name=r.get("qualification_name") or r.get("qp_code") or "—",
+                sector=r.get("sector") or "—",
+                level=r.get("nsqf_level") or "—",
+                centre=centre,
+                km=km_val,
+                reason=t["reason_words"][reason_key],
+            )
+        else:
+            line_no_centre = {
+                "en": "{ord}: {name} in {sector}, NSQF level {level}. Reason: {reason}.",
+                "hi": "{ord} — {name}, {sector} में, स्तर {level}। कारण: {reason}।",
+                "bn": "{ord} — {name}, {sector} খাতে, NSQF স্তর {level}। কারণ: {reason}।",
+                "ta": "{ord} — {name}, {sector} துறையில், NSQF நிலை {level}. காரணம்: {reason}.",
+                "mr": "{ord} — {name}, {sector} क्षेत्रात, NSQF स्तर {level}. कारण: {reason}.",
+            }.get(language, "{ord}: {name} in {sector}, NSQF level {level}. Reason: {reason}.")
+            line = line_no_centre.format(
+                ord=t["ordinals"][min(i, 2)],
+                name=r.get("qualification_name") or r.get("qp_code") or "—",
+                sector=r.get("sector") or "—",
+                level=r.get("nsqf_level") or "—",
+                reason=t["reason_words"][reason_key],
+            )
         lines.append(line)
     lines.append(t["outro"])
     return " ".join(lines)
@@ -104,7 +139,7 @@ def render_template(top3: list[dict], language: str = "hi") -> str:
 async def compose(top3: list[dict], language: str, profile: dict) -> str:
     """Try LLM; on any drift, return the template. Guarantees mention of
     every top-3 item exactly once."""
-    template = render_template(top3, language)
+    template = render_template(top3, language, beneficiary=profile)
 
     if not settings.sarvam_api_key:
         return template
