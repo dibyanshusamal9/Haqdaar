@@ -137,21 +137,12 @@ def render_template(top3: list[dict], language: str = "hi",
 
 
 async def compose(top3: list[dict], language: str, profile: dict) -> str:
-    """Try LLM; on any drift, return the template. Guarantees mention of
-    every top-3 item exactly once."""
-    template = render_template(top3, language, beneficiary=profile)
-
-    if not settings.sarvam_api_key:
-        return template
-
-    try:
-        text = await _sarvam_compose(top3, language, profile)
-        if _mentions_all(text, top3):
-            return text
-        log.warning("composer.drift_detected_using_template")
-    except Exception as e:
-        log.warning("composer.failed", err=str(e))
-    return template
+    """Render the spoken result in ENGLISH. The router localises it via
+    services/i18n so course names survive and there is a single translation
+    path for all 22 languages (the old per-language templates fell back to
+    English for anything but hi/bn/ta/mr — the "asked in English mid-call"
+    bug). Returns the deterministic English template."""
+    return render_template(top3, "en", beneficiary=profile)
 
 
 def _mentions_all(text: str, top3: list[dict]) -> bool:

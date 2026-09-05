@@ -14,10 +14,22 @@ from ..services.ranker import recommend, stability_key
 from ..services.composer import compose
 from ..services.pack import send_pack
 from ..services.lifecycle import create_counselled
+from ..services.i18n import localize, to_english, seed as i18n_seed
+from ..services.next_question import SEED as _QUESTION_SEED
 from ..settings import settings
 from ..logging import log
 
 router = APIRouter(prefix="/session", tags=["session"])
+
+# Load the human translations of the fixed questions into the translation
+# cache so the core languages are instant and idiomatic.
+i18n_seed(_QUESTION_SEED)
+
+# Spoken "let me check" line before the result, so it feels like a real person
+# pausing to look things up rather than answering instantly. Authored in
+# English and localised like everything else.
+_FILLER_EN = ("Thank you. Please hold on for a moment while I look through the "
+              "training options and find the three best paths for you.")
 
 
 # In-memory turn context per session (asked fields, last question).
@@ -50,6 +62,10 @@ async def turn(inp: TurnIn) -> TurnOut:
 
     turn_no = s["turn_count"] + 1
     heard = (inp.text or "").strip()
+    # For languages the rule-based extractor doesn't natively cover (everything
+    # outside en/hi/bn/ta/mr) translate the answer to English first, so the same
+    # rules and keyword tables apply. Native languages pass through unchanged.
+    heard_en = await to_english(heard, b["language"]) if heard else heard
 
     # Extract every field the message mentions — not just the last asked one.
     # A beneficiary who volunteers "I live in Delhi and I studied till 12th"
@@ -58,13 +74,13 @@ async def turn(inp: TurnIn) -> TurnOut:
     last_q = _LAST_Q.get(s["id"])
     if heard:
         question_ctx = last_q[1] if last_q else "Please tell me about yourself."
-        patch = await extract(question=question_ctx, answer=heard, language=b["language"])
+        patch = await extract(question=question_ctx, answer=heard_en, language=b["language"])
         if patch is None and last_q:
             q_text = _rephrase(last_q[1])
             record_turn(s["id"], turn_no, heard_text=heard, extractor_patch=json.dumps({}),
                         latency_ms=int((time.perf_counter() - t0) * 1000))
             return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
-                           done=False, next_question=q_text)
+                           done=False, next_question=await localize(q_text, b["language"]))
         if patch is not None:
             patch_dict = patch.model_dump(exclude_none=True)
             if patch_dict:
@@ -82,7 +98,7 @@ async def turn(inp: TurnIn) -> TurnOut:
                       if k != "language" and v not in (None, "", [])}
 
             if asked_field == "consent":
-                positive = _is_affirmative(heard)
+                positive = _is_affirmative(heard) or _is_affirmative(heard_en)
                 if positive:
                     _ASKED[s["id"]].add("consent")
                     useful["__consented__"] = True
@@ -96,7 +112,7 @@ async def turn(inp: TurnIn) -> TurnOut:
                             extractor_patch=json.dumps(patch_dict),
                             latency_ms=int((time.perf_counter() - t0) * 1000))
                 return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
-                               done=False, next_question=q_text)
+                               done=False, next_question=await localize(q_text, b["language"]))
 
             # Progress: only mark the ASKED field as satisfied when the answer
             # actually filled it, OR when we've already re-asked once. Otherwise
@@ -108,12 +124,12 @@ async def turn(inp: TurnIn) -> TurnOut:
     # If we haven't yet obtained consent, gate.
     if "consent" not in _ASKED[s["id"]]:
         field, question = pick_next({}, _ASKED[s["id"]], b["language"])   # will return consent
-        _LAST_Q[s["id"]] = (field, question)
+        _LAST_Q[s["id"]] = (field, question)   # keep ENGLISH for extraction context
         record_turn(s["id"], turn_no, asked=question, heard_text=heard,
                     extractor_patch=json.dumps(patch_dict),
                     latency_ms=int((time.perf_counter() - t0) * 1000))
         return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
-                       done=False, next_question=question)
+                       done=False, next_question=await localize(question, b["language"]))
 
     # Otherwise rank now to see if top-3 is stable.
     ranked = recommend(b["id"], top=10)
@@ -148,17 +164,23 @@ async def turn(inp: TurnIn) -> TurnOut:
         return await _finish(b, s, top3, ranked, turn_no, t0, heard, patch_dict)
 
     field, question = nxt
-    _LAST_Q[s["id"]] = (field, question)
+    _LAST_Q[s["id"]] = (field, question)   # keep ENGLISH for extraction context
     record_turn(s["id"], turn_no, asked=question, heard_text=heard,
                 extractor_patch=json.dumps(patch_dict),
                 latency_ms=int((time.perf_counter() - t0) * 1000))
     return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
-                   done=False, next_question=question,
+                   done=False, next_question=await localize(question, b["language"]),
                    top3=[dict(r) for r in top3])
 
 
 async def _finish(b, s, top3, ranked, turn_no, t0, heard, patch_dict) -> TurnOut:
-    composer_text = await compose(top3, b["language"], b)
+    lang = b["language"]
+    # Compose the result in English, prepend a human "let me check" line, then
+    # translate the whole thing once so it reads as one natural utterance.
+    composer_en = await compose(top3, lang, b)
+    spoken_en = f"{_FILLER_EN} {composer_en}"
+    composer_text = await localize(spoken_en, lang)
+
     signals_used = {"demand_row_ids": _demand_ids_used(b["home_district"], top3)}
     profile_snap = {k: v for k, v in b.items() if not k.startswith("_")}
     rec = freeze_recommendation(s["id"], b["id"], profile_snap,

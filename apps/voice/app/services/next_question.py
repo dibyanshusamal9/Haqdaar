@@ -92,15 +92,27 @@ QUESTIONS = [
 ]
 
 
-def _text(field: str, language: str) -> str:
-    for f, lang_map in QUESTIONS:
-        if f == field:
-            return lang_map.get(language) or lang_map.get("en") or lang_map.get("hi") or ""
-    return ""
+# English base for every question — this is the single source of truth. The
+# router translates it to the caller's language at send time (services/i18n),
+# so a new language needs no edits here.
+QUESTION_EN: dict[str, str] = {field: m["en"] for field, m in QUESTIONS}
+
+# Human translations to pre-seed the translation cache, so the core languages
+# stay instant and idiomatic. Shape: {english_text: {lang: translated}}.
+SEED: dict[str, dict[str, str]] = {
+    m["en"]: {lang: txt for lang, txt in m.items() if lang != "en"}
+    for _field, m in QUESTIONS
+}
 
 
-def pick_next(profile: dict, asked: set[str], language: str) -> tuple[str, str] | None:
-    """Return (field_name, question_text) or None when we should stop asking."""
+def _text(field: str, language: str = "en") -> str:
+    """Return the ENGLISH base question. Localisation is the router's job."""
+    return QUESTION_EN.get(field, "")
+
+
+def pick_next(profile: dict, asked: set[str], language: str = "en") -> tuple[str, str] | None:
+    """Return (field_name, english_question_text) or None when done asking.
+    The text is always English; the caller localises it."""
     # First turn ⇒ always consent
     if "consent" not in asked:
         return "consent", _text("consent", language)

@@ -141,7 +141,18 @@ async def extract(question: str, answer: str, language: str) -> BeneficiaryPatch
 _STOPWORDS = {"i", "am", "the", "a", "an", "in", "at", "from", "of", "is",
               "and", "or", "to", "my", "our", "we", "you", "he", "she", "they",
               "yes", "no", "haan", "nahi", "ok", "okay", "hello", "hi",
-              "please", "thanks", "namaste", "namaskar", "vanakkam"}
+              "please", "thanks", "namaste", "namaskar", "vanakkam",
+              # meta-text a translation model may occasionally echo for a bare
+              # proper noun — must never be stored as a name or district
+              "telugu", "tamil", "hindi", "bengali", "marathi", "english",
+              "translate", "translation", "translated"}
+
+
+def _looks_like_metatext(s: str) -> bool:
+    """True if a translated name/place looks like a translation artefact
+    ('Telugu To English', 'Translation:', ...) rather than a real value."""
+    low = (s or "").lower()
+    return bool(re.search(r"\b(to english|translation|translate|source|target)\b", low))
 
 
 def _guess_district(answer: str, question: str = "", allow_bare: bool = True) -> str | None:
@@ -284,12 +295,14 @@ def _clean_name(s: str) -> str | None:
         return None
 
     out = " ".join(p.capitalize() if p.isascii() else p for p in parts)
-    return out if len(out) >= 2 else None
+    if len(out) < 2 or _looks_like_metatext(out):
+        return None
+    return out
 
 
 def _clean_place(s: str) -> str | None:
     s = s.strip(" ,.!?।")
-    if not s or len(s) < 2:
+    if not s or len(s) < 2 or _looks_like_metatext(s):
         return None
     # cap at 3 words to avoid grabbing a whole sentence
     parts = s.split()[:3]
@@ -477,8 +490,11 @@ def _sanitize(patch: dict, answer: str) -> dict:
 
 # "near home" / short travel radius
 _NEAR_WORDS = (
-    # en / romanised
-    "near home", "close to home", "nearby", "close by", "near by", "walking distance",
+    # en / romanised — include the shapes Sarvam produces when translating
+    # "ghar ke paas" / "ఇంటికి దగ్గరగా" etc. ("near the house", "near house")
+    "near home", "near the home", "near house", "near the house", "near my",
+    "close to home", "close to house", "close to the", "nearby", "close by",
+    "near by", "walking distance", "in the village", "village",
     "ghar ke paas", "paas hi", "gaon", "gaon me", "nazdeek",
     # hi / mr (Devanagari)
     "घर के पास", "घर के नज़दीक", "घर के नजदीक", "पास में", "पास ही", "यहीं",

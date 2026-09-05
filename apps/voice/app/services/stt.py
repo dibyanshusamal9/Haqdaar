@@ -72,11 +72,13 @@ async def _whisper(audio_bytes: bytes, language: str) -> STTResult:
         return STTResult(text=r.json().get("text", ""), confidence=0.6, provider="whisper")
 
 
-_SARVAM_LANG = {"hi": "hi-IN", "bn": "bn-IN", "ta": "ta-IN", "mr": "mr-IN",
-                "te": "te-IN", "gu": "gu-IN", "kn": "kn-IN", "ml": "ml-IN",
-                "pa": "pa-IN", "or": "od-IN", "as": "as-IN", "ur": "ur-IN",
-                "en": "en-IN"}
+_SARVAM_LANG = {"as": "as-IN", "bn": "bn-IN", "brx": "brx-IN", "doi": "doi-IN",
+                "en": "en-IN", "gu": "gu-IN", "hi": "hi-IN", "kn": "kn-IN",
+                "ks": "ks-IN", "kok": "kok-IN", "mai": "mai-IN", "ml": "ml-IN",
+                "mni": "mni-IN", "mr": "mr-IN", "ne": "ne-IN", "or": "od-IN",
+                "od": "od-IN", "pa": "pa-IN", "sa": "sa-IN", "sat": "sat-IN",
+                "sd": "sd-IN", "ta": "ta-IN", "te": "te-IN", "ur": "ur-IN"}
 
 
 def _sarvam_lang(code: str) -> str:
-    return _SARVAM_LANG.get(code, "hi-IN")
+    return _SARVAM_LANG.get(code, "en-IN")
