@@ -2,10 +2,34 @@
 supabase-py for typed table ops."""
 from __future__ import annotations
 import hashlib, json, uuid, datetime, decimal
+from contextlib import contextmanager
 from typing import Any, Iterable
 import psycopg
 from psycopg.rows import dict_row
 from .settings import settings
+
+# A connection pool. Opening a fresh Postgres connection costs ~25-30 ms, and a
+# single /session/turn makes ~10 queries — so without pooling every turn paid
+# ~300 ms of pure connection setup. The pool keeps warm connections around and
+# hands them back, cutting that to near zero. psycopg[pool] is already a
+# dependency. If the pool can't be created (older psycopg, odd env) we fall
+# back to one-connection-per-call so the app still runs.
+_pool = None
+try:
+    from psycopg_pool import ConnectionPool
+
+    if settings.database_url:
+        _pool = ConnectionPool(
+            settings.database_url,
+            min_size=2,
+            max_size=10,
+            timeout=10,
+            max_idle=300,
+            kwargs={"row_factory": dict_row, "autocommit": True},
+            open=True,
+        )
+except Exception:  # pragma: no cover - fallback path
+    _pool = None
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -25,10 +49,21 @@ def phone_hash(phone: str) -> str:
     return hashlib.sha256(phone.strip().encode()).hexdigest()
 
 
-def conn() -> psycopg.Connection:
+@contextmanager
+def conn():
+    """Yield a connection from the pool (reused), or a fresh one if there is no
+    pool. Pooled connections are returned to the pool on exit, NOT closed."""
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL not set")
-    return psycopg.connect(settings.database_url, row_factory=dict_row, autocommit=True)
+    if _pool is not None:
+        with _pool.connection() as c:
+            yield c
+    else:
+        c = psycopg.connect(settings.database_url, row_factory=dict_row, autocommit=True)
+        try:
+            yield c
+        finally:
+            c.close()
 
 
 def q(sql: str, params: Iterable[Any] | None = None) -> list[dict]:

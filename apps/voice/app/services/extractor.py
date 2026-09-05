@@ -53,24 +53,45 @@ Speaker's answer: {answer}
 Return ONLY the JSON object. No prose, no markdown, no explanation:"""
 
 
+# Circuit breaker: once an LLM provider fails with an auth/permission/quota
+# error (e.g. Grok 403 "no credit"), stop calling it for the life of the
+# process. Otherwise every single turn pays an ~800 ms network round-trip to a
+# provider that can never succeed, then falls back to the rules anyway. Cleared
+# only by a restart — which is when new credentials would take effect.
+_PROVIDER_DISABLED: set[str] = set()
+# 400 too: an LLM endpoint returns it for an unknown model / malformed request
+# (e.g. Grok returns 400 "model not found" for a model the key can't access),
+# and that never fixes itself within a running process.
+_FATAL_STATUSES = {400, 401, 402, 403, 404, 429}
+
+
 async def extract(question: str, answer: str, language: str) -> BeneficiaryPatch | None:
     provider = settings.extractor_provider
     llm_raw: dict = {}
-    try:
-        if provider == "anthropic" and settings.anthropic_api_key:
-            llm_raw = await _anthropic(question, answer, language)
-        elif provider == "openai" and settings.openai_api_key:
-            llm_raw = await _openai(question, answer, language)
-        elif provider == "groq" and settings.groq_api_key:
-            llm_raw = await _groq(question, answer, language)
-        elif provider == "gemini" and settings.gemini_api_key:
-            llm_raw = await _gemini(question, answer, language)
-        elif provider in ("grok", "xai") and (settings.grok_api_key or settings.xai_api_key):
-            llm_raw = await _grok(question, answer, language)
-        elif provider == "sarvam" and settings.sarvam_api_key:
-            llm_raw = await _sarvam(question, answer, language)
-    except Exception as e:
-        log.warning("extractor.llm_failed_using_mock_only", err=str(e))
+    if provider not in _PROVIDER_DISABLED:
+        try:
+            if provider == "anthropic" and settings.anthropic_api_key:
+                llm_raw = await _anthropic(question, answer, language)
+            elif provider == "openai" and settings.openai_api_key:
+                llm_raw = await _openai(question, answer, language)
+            elif provider == "groq" and settings.groq_api_key:
+                llm_raw = await _groq(question, answer, language)
+            elif provider == "gemini" and settings.gemini_api_key:
+                llm_raw = await _gemini(question, answer, language)
+            elif provider in ("grok", "xai") and (settings.grok_api_key or settings.xai_api_key):
+                llm_raw = await _grok(question, answer, language)
+            elif provider == "sarvam" and settings.sarvam_api_key:
+                llm_raw = await _sarvam(question, answer, language)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in _FATAL_STATUSES:
+                _PROVIDER_DISABLED.add(provider)
+                log.warning("extractor.provider_disabled_for_session",
+                            provider=provider, status=e.response.status_code,
+                            note="rule-based extractor will handle every turn from now on")
+            else:
+                log.warning("extractor.llm_failed_using_mock_only", err=str(e))
+        except Exception as e:
+            log.warning("extractor.llm_failed_using_mock_only", err=str(e))
 
     # Always run deterministic rules too — they catch what the LLM misses.
     mock_raw = _mock(question, answer, language)
