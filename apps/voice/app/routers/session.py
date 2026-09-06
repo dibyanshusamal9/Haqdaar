@@ -70,7 +70,13 @@ async def turn(inp: TurnIn) -> TurnOut:
     t0 = time.perf_counter()
     b, s = _get_or_create_session(inp)
 
-    turn_no = s["turn_count"] + 1
+    # Monotonic per-session turn number. Do NOT derive this from
+    # sessions.turn_count: that only advances once consent is obtained, so the
+    # greeting / consent / name turns would all reuse turn_no=1 and be dropped
+    # by voice_turns' ON CONFLICT DO NOTHING — losing them from the transcript.
+    _row = q("select coalesce(max(turn_no), 0) + 1 as n from voice_turns where session_id=%s::uuid",
+             (s["id"],))
+    turn_no = _row[0]["n"] if _row else 1
     heard = (inp.text or "").strip()
     # For languages the rule-based extractor doesn't natively cover (everything
     # outside en/hi/bn/ta/mr) translate the answer to English first, so the same
@@ -246,16 +252,19 @@ async def transcript(session_id: str):
     turns = q("select turn_no, asked, asked_local, heard_text, heard_en, "
               "latency_ms, created_at from voice_turns "
               "where session_id=%s::uuid order by turn_no", (session_id,))
+    # Within one stored turn, `heard_text` is the caller's reply to the PREVIOUS
+    # question and `asked` is the NEXT question the system then posed — so the
+    # true chronological order is heard first, then asked.
     convo = []
     for t in turns:
-        if t.get("asked") or t.get("asked_local"):
-            convo.append({"role": "setu",
-                          "text": t.get("asked_local") or t.get("asked"),
-                          "text_en": t.get("asked"), "turn": t["turn_no"]})
         if t.get("heard_text"):
             convo.append({"role": "beneficiary",
                           "text": t.get("heard_text"),
                           "text_en": t.get("heard_en"), "turn": t["turn_no"]})
+        if t.get("asked") or t.get("asked_local"):
+            convo.append({"role": "setu",
+                          "text": t.get("asked_local") or t.get("asked"),
+                          "text_en": t.get("asked"), "turn": t["turn_no"]})
 
     rec = q("select top3, composer_text, created_at from recommendations "
             "where session_id=%s::uuid order by created_at desc limit 1", (session_id,))
