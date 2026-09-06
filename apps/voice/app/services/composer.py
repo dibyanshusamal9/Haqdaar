@@ -137,11 +137,14 @@ def render_template(top3: list[dict], language: str = "hi",
 
 
 async def compose(top3: list[dict], language: str, profile: dict) -> str:
-    """Render the spoken result in ENGLISH. The router localises it via
-    services/i18n so course names survive and there is a single translation
-    path for all 22 languages (the old per-language templates fell back to
-    English for anything but hi/bn/ta/mr — the "asked in English mid-call"
-    bug). Returns the deterministic English template."""
+    """Render the spoken result. For the languages with a native template
+    (en/hi/bn/ta/mr) render directly — no network, fully offline. For any
+    other scheduled language render English and let the router translate it
+    via i18n (which needs Sarvam translate credits; without them it safely
+    falls back to English)."""
+    lang = (language or "en").lower()
+    if lang in TEMPLATES:
+        return render_template(top3, lang, beneficiary=profile)
     return render_template(top3, "en", beneficiary=profile)
 
 

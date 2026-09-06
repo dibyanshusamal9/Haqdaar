@@ -35,6 +35,14 @@ async def health():
 
 @app.on_event("startup")
 async def on_start():
+    # Pre-load the human translations for the core languages so hi/bn/ta/mr
+    # questions are instant and idiomatic; everything else translates on first
+    # use via Sarvam and is then cached.
+    from .services.i18n import seed
+    from .services.next_question import SEED
+    from .routers.session import reask_seed
+    seed(SEED)
+    seed(reask_seed())
     log.info("voice.start", provider_ivr=settings.ivr_provider,
              provider_wa=settings.whatsapp_provider,
              extractor=settings.extractor_provider)
