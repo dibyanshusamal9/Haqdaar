@@ -67,6 +67,7 @@ async def converse(
         "reply_text": reply_text,
         "reply_audio_url": reply_audio_url,
         "done": out.done,
+        "finalizing": out.finalizing,   # true = "let me check" said; call again for results
         "top3": out.top3,
         "composer_text": out.composer_text,
         "recommendation_id": out.recommendation_id,

@@ -45,6 +45,8 @@ _FILLER_EN = _FILLER["en"]
 # In-memory turn context per session (asked fields, last question).
 _ASKED: dict[str, set[str]] = {}
 _LAST_Q: dict[str, tuple[str, str]] = {}    # session_id → (field, text)
+_FINALIZING: set[str] = set()               # sessions that said "let me check"
+                                            # and owe results on the next call
 
 
 def _get_or_create_session(inp: TurnIn) -> tuple[dict, dict]:
@@ -78,6 +80,15 @@ async def turn(inp: TurnIn) -> TurnOut:
              (s["id"],))
     turn_no = _row[0]["n"] if _row else 1
     heard = (inp.text or "").strip()
+
+    # Phase 2 of the two-phase finish: we already said "let me check" last turn.
+    # Now actually rank and return the results, ignoring whatever this trigger
+    # turn contained.
+    if s["id"] in _FINALIZING:
+        _FINALIZING.discard(s["id"])
+        ranked = recommend(b["id"], top=10)
+        top3 = ranked[:3]
+        return await _finish(b, s, top3, ranked, turn_no, t0, "", "", {})
     # For languages the rule-based extractor doesn't natively cover (everything
     # outside en/hi/bn/ta/mr) translate the answer to English first, so the same
     # rules and keyword tables apply. Native languages pass through unchanged.
@@ -101,10 +112,25 @@ async def turn(inp: TurnIn) -> TurnOut:
                            done=False, next_question=q_local)
         if patch is not None:
             patch_dict = patch.model_dump(exclude_none=True)
+            # Validate before writing: a district we have no data for, or an
+            # out-of-range age, is a wrong input — drop it so the field stays
+            # unfilled and the caller is asked again with a clear message.
+            rejected = _validate_patch(patch_dict)
             if patch_dict:
                 b = patch_beneficiary(b["id"], patch_dict)
                 for field in patch_dict.keys():
                     _ASKED[s["id"]].add(field)
+            # If the caller's answer to THIS question was rejected as invalid,
+            # tell them plainly and re-ask.
+            if last_q and last_q[0] in rejected:
+                q_text = rejected[last_q[0]]
+                q_local = await localize(q_text, b["language"])
+                record_turn(s["id"], turn_no, asked=q_text, asked_local=q_local,
+                            heard_text=heard, heard_en=heard_en,
+                            extractor_patch=json.dumps(patch_dict),
+                            latency_ms=int((time.perf_counter() - t0) * 1000))
+                return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
+                               done=False, next_question=q_local)
 
         # Re-ask ONCE if the answer produced no useful fields at all.
         # A "useful field" = anything other than the language echo. If the
@@ -177,7 +203,24 @@ async def turn(inp: TurnIn) -> TurnOut:
         and b.get("self_employ_ok") is not None
         and bool(b.get("social_category"))
     )
-    if reached_max or (all_filled and len(top3) >= 1):
+    should_finish = reached_max or (all_filled and len(top3) >= 1)
+
+    # Two-phase finish: first say "let me check" and STOP, without running the
+    # ranker. The frontend plays that line, then auto-sends one more turn which
+    # lands in the `_FINALIZING` branch at the top of the next request and
+    # returns the actual results. This makes the wait feel like a person
+    # checking, instead of a long silent pause before the answer.
+    if should_finish and s["id"] not in _FINALIZING:
+        _FINALIZING.add(s["id"])
+        filler = _FILLER.get((b["language"] or "en").lower()) or _FILLER["en"]
+        record_turn(s["id"], turn_no, asked=_FILLER["en"], asked_local=filler,
+                    heard_text=heard, heard_en=heard_en,
+                    extractor_patch=json.dumps(patch_dict),
+                    latency_ms=int((time.perf_counter() - t0) * 1000))
+        return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
+                       done=False, finalizing=True, next_question=filler)
+
+    if should_finish:
         return await _finish(b, s, top3, ranked, turn_no, t0, heard, heard_en, patch_dict)
 
     # Pick next question
@@ -199,16 +242,14 @@ async def turn(inp: TurnIn) -> TurnOut:
 
 async def _finish(b, s, top3, ranked, turn_no, t0, heard, heard_en, patch_dict) -> TurnOut:
     lang = (b["language"] or "en").lower()
-    # compose() returns native text for en/hi/bn/ta/mr and English otherwise.
+    # The "let me check" filler was already spoken in phase 1, so the result is
+    # just the pathways. compose() renders native for en/hi/bn/ta/mr, else English.
     composed = await compose(top3, lang, b)
-    filler = _FILLER.get(lang)
-    if filler is not None:
-        # native language: prepend the native filler, no translation needed
-        composer_text = f"{filler} {composed}"
+    if lang in ("en", "hi", "bn", "ta", "mr"):
+        composer_text = composed
     else:
-        # other scheduled language: translate the whole English utterance
-        composer_text = await localize(f"{_FILLER['en']} {composed}", lang)
-    composer_en = f"{_FILLER['en']} {await compose(top3, 'en', b)}"
+        composer_text = await localize(composed, lang)
+    composer_en = await compose(top3, "en", b)
 
     signals_used = {"demand_row_ids": _demand_ids_used(b["home_district"], top3)}
     profile_snap = {k: v for k, v in b.items() if not k.startswith("_")}
@@ -232,6 +273,7 @@ async def _finish(b, s, top3, ranked, turn_no, t0, heard, heard_en, patch_dict) 
                 latency_ms=int((time.perf_counter() - t0) * 1000))
     _ASKED.pop(s["id"], None)
     _LAST_Q.pop(s["id"], None)
+    _FINALIZING.discard(s["id"])
     return TurnOut(session_id=s["id"], beneficiary_id=b["id"], done=True,
                    next_question=None, top3=[dict(r) for r in top3],
                    composer_text=composer_text,
@@ -316,6 +358,48 @@ def _is_affirmative(text: str) -> bool:
     if any(re.search(rf"\b{w}\b", t) for w in _AFFIRMATIVE_ASCII):
         return True
     return any(w in text for w in _AFFIRMATIVE_NATIVE)
+
+
+def _served_districts() -> set[str]:
+    """Districts we actually have training centres or demand data for. Cached
+    for the process; small and rarely-changing."""
+    global _SERVED_CACHE
+    if _SERVED_CACHE is None:
+        rows = q("select distinct district from training_centres "
+                 "union select distinct district from demand_signals")
+        _SERVED_CACHE = {(r["district"] or "").strip().lower() for r in rows}
+    return _SERVED_CACHE
+
+
+_SERVED_CACHE: set[str] | None = None
+
+
+def _validate_patch(patch: dict) -> dict[str, str]:
+    """Drop invalid fields from `patch` IN PLACE and return {field: re-ask
+    message} for each rejection, so the caller can prompt for a correct value.
+
+    Validated:
+      - home_district must be a district we serve
+      - age must be a plausible working age (10-80)
+    """
+    rejected: dict[str, str] = {}
+
+    d = patch.get("home_district")
+    if d:
+        served = _served_districts()
+        if served and d.strip().lower() not in served:
+            patch.pop("home_district", None)
+            examples = ", ".join(sorted({s.title() for s in served})[:3]) or "Nalanda, Bhagalpur, Jhabua"
+            rejected["home_district"] = (
+                f"Sorry, I couldn't find '{d}' in our districts. "
+                f"Please say a district we cover, like {examples}.")
+
+    a = patch.get("age")
+    if a is not None and not (10 <= int(a) <= 80):
+        patch.pop("age", None)
+        rejected["age"] = "That doesn't look like a valid age. Please tell me your age in years, for example 24."
+
+    return rejected
 
 
 def _rephrase(question: str) -> str:

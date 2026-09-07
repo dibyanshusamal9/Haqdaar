@@ -16,6 +16,8 @@ class TurnOut(BaseModel):
     session_id: str
     beneficiary_id: str
     done: bool
+    finalizing: bool = False           # interview complete; "let me check" said,
+                                       # results come on the next (auto) call
     next_question: str | None = None
     top3: list[dict] | None = None
     composer_text: str | None = None

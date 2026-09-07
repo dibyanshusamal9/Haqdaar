@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # manisha are bulbul:v2 names — v3 rejects them with HTTP 400.)
     # `pace` < 1.0 slows delivery slightly for a gentler tone.
     sarvam_tts_speaker: str = "priya"
-    sarvam_tts_pace: float = 0.95
+    sarvam_tts_pace: float = 1.0
     sarvam_tts_pitch: float = 0.0
 
     # Extractor LLM

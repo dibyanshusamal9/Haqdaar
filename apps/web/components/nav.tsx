@@ -9,6 +9,7 @@ export function Nav() {
         </Link>
         <div className="flex gap-4 text-sm text-neutral-600">
           <Link href="/">Districts</Link>
+          <Link href="/beneficiaries">Beneficiaries</Link>
           <Link href="/leads">Leads</Link>
         </div>
       </div>

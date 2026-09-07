@@ -529,15 +529,27 @@ function addTurn(userTxt, resp) {
   if (!hasTurns) { log.innerHTML = ""; hasTurns = true; }
   // Only reveal the top-3 recommendations at the end of the interview;
   // during the Q&A they'd just be noise that changes every turn.
-  const top3 = (resp.done && Array.isArray(resp.top3) ? resp.top3 : []).map(t => `
+  const top3 = (resp.done && Array.isArray(resp.top3) ? resp.top3 : []).map(t => {
+    // Centre + location + distance. If no centre in the caller's own district,
+    // the ranker returns a nearby one (same-state) with its distance — show it
+    // with an explicit "nearest available" note so it's clear it's out-of-district.
+    let centreLine = '<span class="qp" style="color:var(--danger,#b45309)">No training centre listed yet — a mobiliser will confirm the nearest option.</span>';
+    if (t.centre_name) {
+      const km = (t.distance_km != null) ? `~${t.distance_km} km` : '';
+      const loc = t.centre_address ? ` · ${t.centre_address}` : '';
+      centreLine = `<span class="qp">🏫 ${t.centre_name}${loc} ${km}</span>`;
+    }
+    return `
     <li>
       <span></span>
       <div>
         <div class="role-name">${t.job_role || t.qualification_name || t.qp_code || 'Pathway'}</div>
         <span class="qp">${t.qp_code || ''} · ${t.sector || ''}</span>
+        ${centreLine}
       </div>
       <div>${t.nsqf_level ? `<span class="pill level">NSQF ${t.nsqf_level}</span>` : ''}</div>
-    </li>`).join("");
+    </li>`;
+  }).join("");
 
   const showTranscript = resp.transcript && resp.transcript !== userTxt;
   const said = userTxt || (resp.transcript ? '' : '<em style="color:var(--muted)">(audio)</em>');
@@ -656,6 +668,19 @@ async function sendForm(formData, userTxt) {
     const j = await r.json();
     addTurn(userTxt, j);
     if (j.profile !== undefined) renderProfile(j.profile);
+
+    // Two-phase finish: the server said "let me check" and is waiting for us to
+    // ask for the results. Let the filler audio start, then fetch the pathways.
+    if (j.finalizing) {
+      setStatus("finding the best pathways for you…");
+      const fd = new FormData();
+      fd.append("phone", $("#phone").value);
+      fd.append("language", $("#lang").value);
+      fd.append("text", "");            // trigger turn; content ignored server-side
+      // small delay so the "let me check" line begins playing first
+      setTimeout(() => sendForm(fd, ""), 900);
+      return;
+    }
     setStatus(j.done ? "session complete" : "idle · tap mic or type to answer");
   } catch (e) {
     setStatus("network error: " + e.message);

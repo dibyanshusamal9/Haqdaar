@@ -27,6 +27,59 @@ async def leads(district: str | None = None):
     return {"leads": stalled(district)}
 
 
+@router.get("/beneficiaries")
+async def beneficiaries(district: str | None = None):
+    """Every beneficiary counselled so far — the persistent record, current AND
+    historical (never just the latest session). Each row carries their profile,
+    the frozen top-3 from their most recent completed recommendation, and when
+    they were seen. The dashboard groups these by job/domain and sorts by
+    district then time."""
+    where = "where b.home_district = %s" if district else ""
+    params = (district,) if district else ()
+    rows = q(
+        f"""
+        select
+            b.id,
+            coalesce(b.name, '—')                 as name,
+            b.home_district                        as district,
+            b.home_state                           as state,
+            b.age,
+            b.education_class,
+            b.education_note,
+            b.interests,
+            b.aspiration,
+            b.mobility_km,
+            b.has_smartphone,
+            b.self_employ_ok,
+            b.social_category,
+            b.language,
+            b.created_at,
+            b.updated_at,
+            -- primary domain = first interest, else aspiration, else 'Unspecified'
+            coalesce(
+                case when array_length(b.interests,1) >= 1 then b.interests[1] end,
+                nullif(b.aspiration,''),
+                'Unspecified'
+            )                                      as domain,
+            (select r.top3 from recommendations r
+              where r.beneficiary_id = b.id
+              order by r.created_at desc limit 1)  as top3,
+            (select r.created_at from recommendations r
+              where r.beneficiary_id = b.id
+              order by r.created_at desc limit 1)  as recommended_at
+        from beneficiaries b
+        {where}
+        order by lower(coalesce(
+                    case when array_length(b.interests,1) >= 1 then b.interests[1] end,
+                    nullif(b.aspiration,''), 'zzz')),
+                 b.home_district nulls last,
+                 b.updated_at desc
+        """,
+        params,
+    )
+    return {"beneficiaries": rows, "count": len(rows)}
+
+
 @router.get("/districts/{district}/gap")
 async def gap(district: str):
     return {
