@@ -32,7 +32,10 @@ async def synthesise(text: str, language: str) -> str:
         text = "..."
     text = _shorten(text)
 
-    key = hashlib.sha256(f"{language}:{text}".encode()).hexdigest()[:16]
+    # Speaker/pace/pitch are part of the identity of the audio — otherwise a
+    # voice change would keep serving clips rendered in the old voice.
+    voice_sig = f"{settings.sarvam_tts_speaker}:{settings.sarvam_tts_pace}:{settings.sarvam_tts_pitch}"
+    key = hashlib.sha256(f"{voice_sig}:{language}:{text}".encode()).hexdigest()[:16]
     path = f"{CACHE_DIR}/{key}.wav"
     if os.path.exists(path):
         return f"file://{path}"
@@ -49,7 +52,10 @@ async def synthesise(text: str, language: str) -> str:
     url = "https://api.sarvam.ai/text-to-speech"
     headers = {"api-subscription-key": settings.sarvam_api_key}
     body = {"inputs": [text], "target_language_code": _lang(language),
-            "model": settings.sarvam_tts_model}
+            "model": settings.sarvam_tts_model,
+            "speaker": settings.sarvam_tts_speaker,   # soft female voice
+            "pace": settings.sarvam_tts_pace,
+            "pitch": settings.sarvam_tts_pitch}
     try:
         async with httpx.AsyncClient(timeout=30.0) as c:
             r = await c.post(url, headers=headers, json=body)

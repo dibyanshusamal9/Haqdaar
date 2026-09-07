@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     sarvam_stt_model: str = "saaras:v2"
     sarvam_tts_model: str = "bulbul:v1"
     sarvam_llm_model: str = "sarvam-m"
+    # A warm, soft female voice. bulbul:v3 female speakers: anushka, vidya,
+    # manisha, arya. `pace` < 1.0 slows delivery slightly for a gentler tone.
+    sarvam_tts_speaker: str = "anushka"
+    sarvam_tts_pace: float = 0.95
+    sarvam_tts_pitch: float = 0.0
 
     # Extractor LLM
     extractor_provider: str = "mock"  # mock | anthropic | openai | sarvam | grok | groq | gemini
