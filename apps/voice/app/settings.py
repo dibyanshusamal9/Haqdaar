@@ -29,9 +29,11 @@ class Settings(BaseSettings):
     sarvam_stt_model: str = "saaras:v2"
     sarvam_tts_model: str = "bulbul:v1"
     sarvam_llm_model: str = "sarvam-m"
-    # A warm, soft female voice. bulbul:v3 female speakers: anushka, vidya,
-    # manisha, arya. `pace` < 1.0 slows delivery slightly for a gentler tone.
-    sarvam_tts_speaker: str = "anushka"
+    # A warm, soft female voice. bulbul:v3 female speakers: priya, neha,
+    # pooja, simran, kavya, ishita, shreya, roopa, ritu. (anushka/vidya/
+    # manisha are bulbul:v2 names — v3 rejects them with HTTP 400.)
+    # `pace` < 1.0 slows delivery slightly for a gentler tone.
+    sarvam_tts_speaker: str = "priya"
     sarvam_tts_pace: float = 0.95
     sarvam_tts_pitch: float = 0.0
 
