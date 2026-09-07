@@ -41,9 +41,16 @@ async def synthesise(text: str, language: str) -> str:
         return f"file://{path}"
 
     def _silent_placeholder() -> str:
-        with open(path, "wb") as f:
-            f.write(b"RIFF\x00\x00\x00\x00WAVEfmt ")
-        return f"file://{path}"
+        # IMPORTANT: write to a SHARED silent file, never to `path`. Writing the
+        # placeholder to the per-phrase cache key would poison that phrase — a
+        # single transient failure (no credits, bad speaker) would then be
+        # served forever, even after the problem is fixed. Using a separate file
+        # means the next call re-hits the API and can succeed.
+        silent = f"{CACHE_DIR}/_silent.wav"
+        if not os.path.exists(silent):
+            with open(silent, "wb") as f:
+                f.write(b"RIFF\x00\x00\x00\x00WAVEfmt ")
+        return f"file://{silent}"
 
     if not settings.sarvam_api_key:
         log.info("tts.mock", text=text[:80])
