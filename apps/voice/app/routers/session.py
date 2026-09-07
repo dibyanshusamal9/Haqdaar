@@ -215,8 +215,10 @@ async def _finish(b, s, top3, ranked, turn_no, t0, heard, heard_en, patch_dict) 
     rec = freeze_recommendation(s["id"], b["id"], profile_snap,
                                 [dict(r) for r in top3],
                                 signals_used, composer_text)
-    # Create the counselled enrollment on the top pick — mobiliser can flip it
-    if top3[0].get("qualification_id"):
+    # Create the counselled enrollment on the top pick — mobiliser can flip it.
+    # `top3` can be empty if the interview hit the hard turn cap before any
+    # qualification matched (or the corpus is empty), so guard the index.
+    if top3 and top3[0].get("qualification_id"):
         create_counselled(b["id"], top3[0]["qualification_id"],
                           top3[0].get("centre_id"), owner="system")
     sent = False
