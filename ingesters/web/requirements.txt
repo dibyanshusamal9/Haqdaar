@@ -1,0 +1,6 @@
+# Weekly web-scraper deps (kept separate from the voice service — the API host
+# does NOT need Playwright/Chromium). Install only where the scraper runs:
+#   pip install -r ingesters/web/requirements.txt
+#   python -m playwright install --with-deps chromium
+playwright==1.47.0
+psycopg[binary]==3.2.3

@@ -1,0 +1,43 @@
+name: Weekly NSQF + NCS ingest
+
+# Re-scrape weekly, Monday 03:00 IST (21:30 UTC Sunday) — off-peak for the
+# source portals. `workflow_dispatch` gives a manual "run now" button.
+on:
+  schedule:
+    - cron: "30 21 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install scraper dependencies
+        run: |
+          python -m pip install -r ingesters/web/requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Apply pending DB migrations
+        run: python bootstrap_db.py --migrations-only
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run weekly ingest (NSQF + NCS)
+        run: python -m ingesters.web.run_weekly
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {"text": "Weekly ingest failed — https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INGEST_WEBHOOK_URL }}
