@@ -16,7 +16,26 @@ def recommend(beneficiary_id: str, top: int = 3) -> list[dict]:
     # We never hand back an empty top-3 — a caller always gets something.
     if not cleaned:
         cleaned = _fallback(beneficiary_id, top)
+    _attach_centre_location(cleaned)
     return cleaned
+
+
+def _attach_centre_location(rows: list[dict]) -> None:
+    """Add centre_district / centre_state to each row that has a centre, so the
+    composer can tell the caller which district the training centre is in
+    (important when it's in a different district from the caller's)."""
+    ids = [r.get("centre_id") for r in rows if r.get("centre_id")]
+    if not ids:
+        return
+    locs = q("select id, district, state from training_centres where id = any(%s::uuid[])",
+             (ids,))
+    by_id = {str(x["id"]): x for x in locs}
+    for r in rows:
+        cid = r.get("centre_id")
+        loc = by_id.get(str(cid)) if cid else None
+        if loc:
+            r["centre_district"] = loc["district"]
+            r["centre_state"] = loc["state"]
 
 
 def _clean_row(r: dict) -> dict:

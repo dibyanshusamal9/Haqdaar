@@ -69,10 +69,11 @@ async def beneficiaries(district: str | None = None):
               order by r.created_at desc limit 1)  as recommended_at
         from beneficiaries b
         {where}
-        order by lower(coalesce(
+        order by lower(coalesce(b.home_state, 'zzz')),
+                 lower(coalesce(b.home_district, 'zzz')),
+                 lower(coalesce(
                     case when array_length(b.interests,1) >= 1 then b.interests[1] end,
                     nullif(b.aspiration,''), 'zzz')),
-                 b.home_district nulls last,
                  b.updated_at desc
         """,
         params,

@@ -393,22 +393,16 @@ def _sanitize(patch: dict, answer: str) -> dict:
         if not (digit_valid or word_valid):
             out.pop("age", None)
 
-    # education_class: only if a class hint is present (digit OR word form OR bare number)
+    # education_class: re-derive from the raw answer via the single parser, so
+    # an LLM can't inject "class 19" and a bare age-like number is never a class.
     if "education_class" in out:
-        digit_ok = re.search(r"class\s*\d{1,2}|\b\d{1,2}\s*(th|वीं|कक्षा|pass|पास|standard|std)", a)
-        # ASCII terms keep \b; Indic terms use containment (see _word_hit).
-        word_ok  = re.search(r"\b(tenth|eleventh|twelfth|eighth|ninth|seventh|sixth|fifth|"
-                             r"graduate|undergraduate|postgraduate|bachelor|bachelors|"
-                             r"master|masters|b\.?tech|btech|b\.?e|b\.?sc|bsc|b\.?a|b\.?com|bcom|"
-                             r"mba|m\.?tech|mtech|phd|doctorate|"
-                             r"diploma|polytechnic|iti|college|university|matric|inter)\b", a) \
-                   or _any(a, ("बारह", "दस", "आठ", "स्नातक", "डिप्लोमा"))
-        # Also "first/second/third/final year" — clearly a college/uni answer
-        year_ok  = re.search(r"\b(first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\b", a)
-        # Native-script class answers ("दसवीं", "দশম শ্রেণী", "பத்தாம் வகுப்பு")
-        native_ok = _any(a, _CLASS_UNITS) or (_native_number(a) is not None)
-        bare_ok  = re.fullmatch(r"\s*\d{1,2}\s*", a)  # a lone number as an answer
-        if not (digit_ok or word_ok or year_ok or bare_ok or native_ok):
+        cls, _note = _parse_education(a)
+        v = out.get("education_class")
+        if cls is not None:
+            out["education_class"] = cls
+        elif isinstance(v, int) and 1 <= v <= 13:
+            pass  # LLM value already in valid range and answer had some signal
+        else:
             out.pop("education_class", None)
 
     # has_smartphone: only if the text talks about a phone
@@ -594,6 +588,74 @@ def _native_number(text: str) -> int | None:
     return None
 
 
+# ----- education parsing -----
+# School class words → 1-12. "graduate/college/diploma/degree/b.tech/..." are
+# all "beyond school" → 13 with a friendly label. NEVER produce class > 12 from
+# a bare number.
+_POST12_WORDS = (
+    "graduate", "graduation", "under graduate", "undergraduate", "postgraduate",
+    "post graduate", "bachelor", "bachelors", "master", "masters", "degree",
+    "b.tech", "btech", "b tech", "b.e", "be ", "b.sc", "bsc", "b.a", "b.com",
+    "bcom", "bca", "mca", "mba", "m.tech", "mtech", "phd", "doctorate",
+    "college", "university", "स्नातक", "पदवी", "डिग्री", "कॉलेज",
+)
+_DIPLOMA_WORDS = ("diploma", "polytechnic", "iti", "डिप्लोमा", "पॉलिटेक्निक")
+_CLASS_WORD_MAP = {
+    "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+    "matric": 10, "matriculation": 10, "eleventh": 11, "twelfth": 12,
+    "inter": 12, "intermediate": 12, "higher secondary": 12, "hsc": 12, "ssc": 10,
+    "पाँचवीं": 5, "पांचवीं": 5, "आठवीं": 8, "नौवीं": 9, "दसवीं": 10, "दहावी": 10,
+    "ग्यारहवीं": 11, "बारहवीं": 12, "बारावी": 12,
+    "দশম": 10, "একাদশ": 11, "দ্বাদশ": 12,
+    "பத்தாம்": 10, "பன்னிரண்டாம்": 12,
+}
+
+
+def _parse_education(a: str, question: str = "") -> tuple[int | None, str | None]:
+    """Return (education_class, education_note).
+    education_class ∈ 1..12 for school, or 13 for anything post-12. None if the
+    answer carries no valid schooling signal."""
+    a = (a or "").lower()
+
+    # 1) explicit "class 10" / "10th" / "12 pass" / "10 वीं"
+    m = re.search(r"class\s*(\d{1,2})|(\d{1,2})\s*(?:th|वीं|वी|कक्षा|pass|पास|"
+                  r"standard|std|শ্রেণ|வகுப்பு)", a)
+    if m:
+        n = int(next(g for g in m.groups() if g))
+        if 1 <= n <= 12:
+            return n, f"Class {n}"
+        # a number with a class-suffix but out of range (e.g. "15th") — invalid
+        return None, None
+
+    # 2) post-12 words (graduate / college / b.tech / diploma / "2nd year")
+    if any(w in a for w in _POST12_WORDS) or re.search(
+            r"\b(first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\b", a):
+        return 13, "Graduate / College"
+    if any(w in a for w in _DIPLOMA_WORDS):
+        return 13, "Diploma / ITI"
+
+    # 3) native class words ("दसवीं", "দশম", "பத்தாம்")
+    for w, cls in sorted(_CLASS_WORD_MAP.items(), key=lambda kv: -len(kv[0])):
+        if w in a:
+            return cls, f"Class {cls}"
+
+    # 4) bare number ONLY when the question was about class/education, and only
+    # if it's a valid school class 1-12. "19" is rejected here.
+    q = (question or "").lower()
+    if any(k in q for k in ("class", "studied", "study", "education", "school",
+                            "कक्षा", "पढ़ाई", "पढ़", "शाळा", "शिक", "শ্রেণ",
+                            "পড়া", "வகுப்பு", "படித்த")):
+        m2 = re.fullmatch(r"\s*(\d{1,2})\s*", a)
+        if m2:
+            n = int(m2.group(1))
+            if 1 <= n <= 12:
+                return n, f"Class {n}"
+        nat = _native_number(a)
+        if nat is not None and 1 <= nat <= 12:
+            return nat, f"Class {nat}"
+    return None, None
+
+
 def _any(text: str, words) -> bool:
     return any(w in text for w in words)
 
@@ -655,67 +717,16 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
                     word_age = _native_number(a)
                 if word_age is not None and 10 <= word_age <= 80:
                     p["age"] = word_age
-    # class — "class 10" / "10th" / "१०वीं" / "দশম শ্রেণী" / "10 पास"
-    m = re.search(r"class\s*(\d{1,2})|(\d{1,2})\s*(?:" + "|".join(map(re.escape, _CLASS_UNITS)) + r")", a)
-    if m:
-        p["education_class"] = int(next(g for g in m.groups() if g))
-    if "education_class" not in p and _any(a, _CLASS_UNITS):
-        # native-script number word next to a class unit ("दशम श्रेणी", "দশম শ্রেণী")
-        native_class = {"पहली":1,"दूसरी":2,"तीसरी":3,"चौथी":4,"पांचवीं":5,"छठी":6,
-                        "सातवीं":7,"आठवीं":8,"नौवीं":9,"दसवीं":10,"ग्यारहवीं":11,"बारहवीं":12,
-                        "প্রথম":1,"পঞ্চম":5,"অষ্টম":8,"নবম":9,"দশম":10,"একাদশ":11,"দ্বাদশ":12,
-                        "ஐந்தாம்":5,"எட்டாம்":8,"ஒன்பதாம்":9,"பத்தாம்":10,"பன்னிரண்டாம்":12}
-        for w, cls in sorted(native_class.items(), key=lambda kv: -len(kv[0])):
-            if w in a:
-                p["education_class"] = cls
-                break
-        if "education_class" not in p:
-            n = _native_number(a)
-            if n is not None and 1 <= n <= 15:
-                p["education_class"] = n
-    word_class = {"fifth":5, "sixth":6, "seventh":7, "eighth":8, "ninth":9,
-                  "tenth":10, "matric":10, "eleventh":11, "twelfth":12, "inter":12,
-                  # college / university / diploma variants — a common source
-                  # of "why didn't it capture my education?" bugs
-                  "undergraduate": 15, "postgraduate": 16, "graduate": 15,
-                  "bachelor": 15, "bachelors": 15, "master": 16, "masters": 16,
-                  "b\\.tech": 15, "btech": 15, "b\\.e": 15, "be": 15,
-                  "b\\.sc": 15, "bsc": 15, "b\\.a": 15, "ba": 15,
-                  "b\\.com": 15, "bcom": 15, "mba": 16, "m\\.tech": 16, "mtech": 16,
-                  "phd": 17, "doctorate": 17,
-                  "diploma": 13, "polytechnic": 13, "iti": 12,
-                  "college": 15, "university": 15,
-                  "स्नातक": 15, "डिप्लोमा": 13,
-                  "बारह": 12, "दस": 10, "आठ": 8}
-    for w, cls in word_class.items():
-        # regex-escaped keys like "b\\.tech" stay as patterns; plain words go
-        # through _word_hit so Indic entries aren't broken by \b (see helper).
-        pattern_key = "\\" in w
-        hit = re.search(rf"\b{w}\b", a) if pattern_key else _word_hit(a, w)
-        if hit:
-            p.setdefault("education_class", cls)
-            break
-    # Capture natural phrases for the officer/UI to see verbatim.
-    # "third year", "final year", "second year" — treat as college / graduate track.
-    m_year = re.search(r"\b(first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\b", a, re.IGNORECASE)
-    if m_year:
-        p.setdefault("education_class", 15)
-        p["education_note"] = f"{m_year.group(0).strip().title()} college"
-    elif re.search(r"\b(college|university|graduate|undergraduate)\b", a, re.IGNORECASE):
-        p.setdefault("education_note", "College / graduate")
-    elif re.search(r"\b(diploma|polytechnic|iti)\b", a, re.IGNORECASE):
-        p.setdefault("education_note", "Diploma / ITI")
-    elif re.search(r"(\d{1,2})\s*(?:th\b|वीं|pass\b|पास)", a, re.IGNORECASE):
-        n = re.search(r"(\d{1,2})", a)
-        if n:
-            p["education_note"] = f"Class {n.group(1)}"
-    # Bare number in an education context — the last question tells us
-    if "education_class" not in p:
-        q_low2 = (question or "").lower()
-        if any(k in q_low2 for k in ("class", "studied", "education", "कक्षा", "पढ़ाई", "শ্রেণ", "வகுப்பு")):
-            m3 = re.fullmatch(r"\s*(\d{1,2})\s*", a)
-            if m3 and 1 <= int(m3.group(1)) <= 15:
-                p["education_class"] = int(m3.group(1))
+    # ---- education (highest schooling) ----
+    # Model: education_class is a SCHOOL class 1-12. Anything beyond school
+    # (graduate / diploma / college / degree) is stored as 13 ("post-12") so it
+    # still satisfies course eligibility, with a human label in education_note.
+    # A bare number is only a class if it's 1-12 — "19" is NOT a class.
+    ecls, enote = _parse_education(a, question)
+    if ecls is not None:
+        p["education_class"] = ecls
+    if enote:
+        p["education_note"] = enote
     # smartphone (multilingual)
     if _any(a, _SMART_NO):
         p["has_smartphone"] = False

@@ -374,25 +374,41 @@ def _served_districts() -> set[str]:
 _SERVED_CACHE: set[str] | None = None
 
 
+def _lookup_district(name: str) -> dict | None:
+    """Return {district,state,latitude,longitude} for a REAL Indian district,
+    else None. Matches case-insensitively on the reference table."""
+    rows = q("select district, state, latitude, longitude from indian_districts "
+             "where lower(district)=lower(%s) limit 1", (name.strip(),))
+    return rows[0] if rows else None
+
+
 def _validate_patch(patch: dict) -> dict[str, str]:
     """Drop invalid fields from `patch` IN PLACE and return {field: re-ask
-    message} for each rejection, so the caller can prompt for a correct value.
+    message} for each rejection.
 
-    Validated:
-      - home_district must be a district we serve
-      - age must be a plausible working age (10-80)
+    home_district: must be a REAL Indian district (checked against
+    indian_districts). A real district we don't have centres in is ACCEPTED —
+    we then route to the nearest centre. Only names that aren't Indian
+    districts at all are rejected. When accepted, we also stamp the
+    beneficiary's home_state + lat/long so the ranker can compute real distance
+    to the nearest training centre anywhere.
+    age: plausible working age 10-80.
     """
     rejected: dict[str, str] = {}
 
     d = patch.get("home_district")
     if d:
-        served = _served_districts()
-        if served and d.strip().lower() not in served:
+        hit = _lookup_district(d)
+        if hit:
+            patch["home_district"] = hit["district"]      # canonical spelling
+            patch.setdefault("home_state", hit["state"])
+            patch.setdefault("latitude", hit["latitude"])
+            patch.setdefault("longitude", hit["longitude"])
+        else:
             patch.pop("home_district", None)
-            examples = ", ".join(sorted({s.title() for s in served})[:3]) or "Nalanda, Bhagalpur, Jhabua"
             rejected["home_district"] = (
-                f"Sorry, I couldn't find '{d}' in our districts. "
-                f"Please say a district we cover, like {examples}.")
+                f"Sorry, I couldn't find any district named '{d}' in India. "
+                f"Please say your district again — for example Patna, Bhagalpur or Jhabua.")
 
     a = patch.get("age")
     if a is not None and not (10 <= int(a) <= 80):
@@ -413,8 +429,8 @@ _REASK_HINTS = {
                         "hi": "क्षमा करें, आप किस ज़िले या शहर में रहते हैं?"},
     "age":             {"en": "I need your age in years — for example, 22.",
                         "hi": "कृपया अपनी उम्र सालों में बताएँ — जैसे 22।"},
-    "education_class": {"en": "Up to which class did you finish? For example, 10th or 12th.",
-                        "hi": "आपने कौन सी कक्षा तक पढ़ाई की — जैसे 10वीं या 12वीं?"},
+    "education_class": {"en": "Please tell me the class you passed — 10th, 12th, or higher.",
+                        "hi": "कृपया बताएं आपने कौन सी कक्षा पास की — दसवीं, बारहवीं, या उससे ऊपर?"},
     "interests":       {"en": "Any specific work you enjoy? For example: tailoring, mobile repair, dairy, mason.",
                         "hi": "कोई विशेष काम जो आपको पसंद हो? जैसे — सिलाई, मोबाइल रिपेयर, डेयरी, मिस्त्री।"},
     "mobility_km":     {"en": "About how many kilometres can you travel — 5, 20, or into the city?",

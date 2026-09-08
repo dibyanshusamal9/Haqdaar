@@ -105,6 +105,10 @@ def render_template(top3: list[dict], language: str = "hi",
         reason_key = _reason_from_scores(r)
         centre = r.get("centre_name")
         km_val = r.get("distance_km")
+        # Fold the centre's district into the centre label so all languages say
+        # WHERE the centre is (it may be in a different district from the caller).
+        cdist = r.get("centre_district")
+        centre_label = f"{centre} ({cdist})" if (centre and cdist) else centre
         # Choose a per-row wording depending on whether we know a centre.
         if centre and km_val is not None:
             line = t["line"].format(
@@ -112,7 +116,7 @@ def render_template(top3: list[dict], language: str = "hi",
                 name=r.get("qualification_name") or r.get("qp_code") or "—",
                 sector=r.get("sector") or "—",
                 level=r.get("nsqf_level") or "—",
-                centre=centre,
+                centre=centre_label,
                 km=km_val,
                 reason=t["reason_words"][reason_key],
             )
