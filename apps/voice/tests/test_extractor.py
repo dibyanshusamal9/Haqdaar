@@ -8,6 +8,17 @@ def test_mobile_repair_interest():
     p = _mock("What are you interested in?", "mai mobile phone repair karna chahta hu", "hi")
     b = BeneficiaryPatch(**p)
     assert "telecom" in (b.interests or [])
+    # The specific trade is kept too, not just its sector.
+    assert "phone repair" in (b.interests or [])
+
+
+def test_interest_keeps_callers_own_words():
+    p = _mock("आपको किन कामों में रुचि है?", "mobile repair", "hi")
+    b = BeneficiaryPatch(**p)
+    assert "mobile repair" in (b.interests or [])
+    assert "telecom" in (b.interests or [])
+    p = _mock("What work interests you?", "weaving", "en")
+    assert "weaving" in (BeneficiaryPatch(**p).interests or [])
 
 
 def test_age_extraction():

@@ -435,12 +435,13 @@ def _sanitize(patch: dict, answer: str) -> dict:
                 if kw in a and (canonical in item_l or kw in item_l):
                     mapped = canonical
                     break
+            # Keep the caller's own words whenever they literally said them
+            # ("mobile repair"), next to the sector word ("telecom"): the
+            # ranker needs the specific trade, the sector alone is too broad.
+            if item_l in a and 2 <= len(item_l) <= 40:
+                kept.append(item_l)
             if mapped:
                 kept.append(mapped)
-            elif item_l in a and 2 <= len(item_l) <= 40:
-                # LLM extracted a phrase that literally appears in the
-                # answer — trust it as free-text interest.
-                kept.append(item_l)
         out["interests"] = list(dict.fromkeys(kept))
         if not out["interests"]:
             out.pop("interests", None)
@@ -529,7 +530,7 @@ _SELF_YES = (
 )
 # prefers a salaried job
 _SELF_NO = (
-    "salaried", "salary job", "salaried job", "a job", "naukri", "nokri",
+    "salaried", "salary job", "salaried job", "a job", "job", "naukri", "nokri",
     # hi / mr — note both नौकरी (hi) and नोकरी (mr) spellings
     "नौकरी", "नोकरी", "पगारी", "पगाराची नोकरी", "वेतन",
     "চাকরি", "বেতনের চাকরি",
@@ -765,9 +766,18 @@ def _mock(question: str, answer: str, language: str) -> dict[str, Any]:
             p.setdefault("interests", []).append(cleaned[:60])
 
     # Sector interests — uses the SHARED _INTEREST_WORDS table so the
-    # sanitizer recognises exactly what we capture here.
+    # sanitizer recognises exactly what we capture here. Also keep the trade
+    # word the caller actually used ("mobile repair", "weaving" for the key
+    # "weav"), not just its sector.
     for kw, sector in _INTEREST_WORDS.items():
         if kw in a:
+            said = kw
+            if kw.isascii():
+                m = re.search(r"[a-z]*" + re.escape(kw) + r"[a-z]*", a)
+                if m:
+                    said = m.group(0)
+            if len(said) >= 3:
+                p.setdefault("interests", []).append(said)
             p.setdefault("interests", []).append(sector)
 
     # self-employment vs salaried job (multilingual). Check the "own work"

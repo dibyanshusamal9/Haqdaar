@@ -28,14 +28,9 @@ from ..settings import settings
 from ..logging import log
 
 # 2-letter UI code -> Sarvam BCP-47-ish code.
-LANG_TO_SARVAM = {
-    "as": "as-IN", "bn": "bn-IN", "brx": "brx-IN", "doi": "doi-IN",
-    "en": "en-IN", "gu": "gu-IN", "hi": "hi-IN", "kn": "kn-IN",
-    "ks": "ks-IN", "kok": "kok-IN", "mai": "mai-IN", "ml": "ml-IN",
-    "mni": "mni-IN", "mr": "mr-IN", "ne": "ne-IN", "or": "od-IN",
-    "od": "od-IN", "pa": "pa-IN", "sa": "sa-IN", "sat": "sat-IN",
-    "sd": "sd-IN", "ta": "ta-IN", "te": "te-IN", "ur": "ur-IN",
-}
+LANG_TO_SARVAM = {"bn": "bn-IN", "en": "en-IN", "gu": "gu-IN", "hi": "hi-IN", "kn": "kn-IN",
+                "ml": "ml-IN", "mr": "mr-IN", "or": "od-IN", "od": "od-IN", "pa": "pa-IN",
+                "ta": "ta-IN", "te": "te-IN"}
 
 _CACHE_PATH = os.path.join(tempfile.gettempdir(), "setu-i18n-cache.json")
 _lock = threading.Lock()

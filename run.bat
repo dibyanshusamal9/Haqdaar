@@ -115,15 +115,16 @@ if errorlevel 1 (
   goto :fail
 )
 
-REM Load the NIELIT NSQF corpus if the extract is present and not yet imported.
-python -c "import sys,os;sys.exit(0 if os.path.exists(r'C:\D DRIVE\SIH 2026\DATABASE EXTRACTED\build\qualifications.db') else 1)" >nul 2>&1
-if not errorlevel 1 (
-  echo   Importing NIELIT NSQF qualifications...
-  python -m ingesters.import_nsqf_extracted >nul 2>&1
-  if errorlevel 1 (echo   ~ NSQF import skipped ^(non-fatal^)) else (echo   OK  NSQF corpus imported)
-) else (
-  echo   ~ NIELIT extract not found - skipping ^(seed corpus still loaded^)
+REM Load the Official India Data Pack (sole qualification source — scrapers removed).
+REM The workbook livelihood_setu_official_dataset.xlsx must be in the project root.
+echo   Importing Official India Data Pack ^(NQR qualifications, PM-AJAY rules...^)
+python -m ingesters.import_official_dataset
+if errorlevel 1 (
+  echo   ! Official dataset import FAILED - check that livelihood_setu_official_dataset.xlsx
+  echo     is present in the project root. The voice app will have no qualifications.
+  goto :fail
 )
+echo   OK  Official dataset imported
 
 if not exist apps\web\node_modules (
   echo.

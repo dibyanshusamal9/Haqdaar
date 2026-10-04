@@ -34,3 +34,13 @@ ENV/
 .pytest_cache/
 .mypy_cache/
 
+
+# Local database backups (contain beneficiary data)
+db/backups/
+
+# The local PostgreSQL install and its live data (contains beneficiary data)
+pgsql/
+
+# Generated caches
+*.tsbuildinfo
+.impeccable/

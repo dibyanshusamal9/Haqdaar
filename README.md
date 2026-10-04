@@ -68,9 +68,10 @@ Repo: <https://github.com/Nidhish01/Livelihood-Setu>
    That runs all `db/migrations/*.sql`, the Supabase-specific side-table
    file, and the seed corpus. Idempotent — safe to re-run.
 
-5. **Load the 167 NIELIT NSQF rows** from your local extract:
+5. **Load the Official India Data Pack** (1,947 active NQR qualifications,
+   PM-AJAY rules, Census SC district profiles, source registry):
    ```
-   python -m ingesters.import_nsqf_extracted
+   python -m ingesters.import_official_dataset
    ```
 
 6. **Run the app** — `run.bat` (auto-detects Supabase and skips Docker).

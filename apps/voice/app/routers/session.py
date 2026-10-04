@@ -1,7 +1,7 @@
 """Core turn endpoint — transport-agnostic.
 IVR and WhatsApp routers call this after they've handled STT."""
 from __future__ import annotations
-import time, json, re
+import time, json, re, difflib
 from fastapi import APIRouter, HTTPException
 from ..models.session import TurnIn, TurnOut
 from ..models.beneficiary import BeneficiaryPatch
@@ -10,11 +10,13 @@ from ..db import (phone_hash, upsert_beneficiary, patch_beneficiary,
                   freeze_recommendation, q)
 from ..services.extractor import extract
 from ..services.next_question import pick_next
+from ..services import persona
 from ..services.ranker import recommend, stability_key
-from ..services.composer import compose
+from ..services.composer import compose, TEMPLATES as _COMPOSER_TEMPLATES
 from ..services.pack import send_pack
 from ..services.lifecycle import create_counselled
 from ..services.i18n import localize, to_english, seed as i18n_seed
+from ..services.translit import to_latin as _to_latin, has_indic as _has_indic
 from ..services.next_question import SEED as _QUESTION_SEED
 from ..settings import settings
 from ..logging import log
@@ -25,21 +27,20 @@ router = APIRouter(prefix="/session", tags=["session"])
 # cache so the core languages are instant and idiomatic.
 i18n_seed(_QUESTION_SEED)
 
-# Spoken "let me check" line before the result, so it feels like a real person
-# pausing to look things up rather than answering instantly. Authored in
-# English and localised like everything else.
-# A warm, human "let me check" line spoken just before the results. Native for
-# the core languages (no network); other languages get the English one
-# translated at send time. Keep it conversational — it should sound like a real
-# counsellor thinking, not a system message.
-_FILLER = {
-    "en": "Thank you. Just give me a moment — let me look through the training options and find the three best paths for you.",
-    "hi": "धन्यवाद। ज़रा एक पल रुकिए — मैं आपके लिए प्रशिक्षण के विकल्प देखकर तीन सबसे अच्छे रास्ते ढूंढती हूँ।",
-    "bn": "ধন্যবাদ। একটু অপেক্ষা করুন — আমি প্রশিক্ষণের বিকল্পগুলো দেখে আপনার জন্য তিনটি সেরা পথ খুঁজে বের করছি।",
-    "ta": "நன்றி. ஒரு நிமிடம் பொறுங்கள் — உங்களுக்கான பயிற்சி வாய்ப்புகளைப் பார்த்து மூன்று சிறந்த வழிகளைத் தேடுகிறேன்.",
-    "mr": "धन्यवाद. जरा एक क्षण थांबा — मी तुमच्यासाठी प्रशिक्षणाचे पर्याय पाहून तीन सर्वोत्तम मार्ग शोधते.",
-}
-_FILLER_EN = _FILLER["en"]
+# RAAHI's acknowledgements, the "let me check" line before the results and the
+# short consent reminder live in services/persona.py.
+
+# Languages whose results message is written natively (no translation).
+COMPOSER_LANGS = tuple(_COMPOSER_TEMPLATES)
+
+
+async def _in_language(line: str, lang: str | None) -> str:
+    """A persona line comes back native for the core languages and in English
+    otherwise; translate the English one like every other prompt."""
+    lang = (lang or "en").lower()
+    if not line or lang in persona.NATIVE:
+        return line
+    return await localize(line, lang)
 
 
 # In-memory turn context per session (asked fields, last question).
@@ -98,6 +99,7 @@ async def turn(inp: TurnIn) -> TurnOut:
     # A beneficiary who volunteers "I live in Delhi and I studied till 12th"
     # should have both district and education captured in one go.
     patch_dict: dict = {}
+    acked: str | None = None   # the question this answer filled, to acknowledge it
     last_q = _LAST_Q.get(s["id"])
     if heard:
         question_ctx = last_q[1] if last_q else "Please tell me about yourself."
@@ -146,6 +148,7 @@ async def turn(inp: TurnIn) -> TurnOut:
                 if positive:
                     _ASKED[s["id"]].add("consent")
                     useful["__consented__"] = True
+                    acked = "consent"
 
             reask_marker = f"__reasked__{asked_field}"
             if not useful and asked_field != "consent" and reask_marker not in _ASKED[s["id"]]:
@@ -166,12 +169,19 @@ async def turn(inp: TurnIn) -> TurnOut:
             # cause the category slot to be silently marked done.
             if asked_field in useful or reask_marker in _ASKED[s["id"]]:
                 _ASKED[s["id"]].add(asked_field)
+            if asked_field in useful:
+                acked = asked_field
 
     # If we haven't yet obtained consent, gate.
     if "consent" not in _ASKED[s["id"]]:
         field, question = pick_next({}, _ASKED[s["id"]], b["language"])   # will return consent
+        if last_q and last_q[0] == "consent":
+            # The full welcome was already said; ask again briefly.
+            question = persona.CONSENT_AGAIN["en"]
+            q_local = await _in_language(persona.consent_again(b["language"]), b["language"])
+        else:
+            q_local = await localize(question, b["language"])
         _LAST_Q[s["id"]] = (field, question)   # keep ENGLISH for extraction context
-        q_local = await localize(question, b["language"])
         record_turn(s["id"], turn_no, asked=question, asked_local=q_local,
                     heard_text=heard, heard_en=heard_en,
                     extractor_patch=json.dumps(patch_dict),
@@ -212,8 +222,8 @@ async def turn(inp: TurnIn) -> TurnOut:
     # checking, instead of a long silent pause before the answer.
     if should_finish and s["id"] not in _FINALIZING:
         _FINALIZING.add(s["id"])
-        filler = _FILLER.get((b["language"] or "en").lower()) or _FILLER["en"]
-        record_turn(s["id"], turn_no, asked=_FILLER["en"], asked_local=filler,
+        filler = await _in_language(persona.filler(b, b["language"]), b["language"])
+        record_turn(s["id"], turn_no, asked=persona.filler(b, "en"), asked_local=filler,
                     heard_text=heard, heard_en=heard_en,
                     extractor_patch=json.dumps(patch_dict),
                     latency_ms=int((time.perf_counter() - t0) * 1000))
@@ -230,13 +240,18 @@ async def turn(inp: TurnIn) -> TurnOut:
 
     field, question = nxt
     _LAST_Q[s["id"]] = (field, question)   # keep ENGLISH for extraction context
+    # Acknowledge the answer just given (by name, once we know it), then ask —
+    # so it sounds like a conversation, not a form.
+    lead = await _in_language(persona.ack(acked, b, b["language"]), b["language"])
     q_local = await localize(question, b["language"])
-    record_turn(s["id"], turn_no, asked=question, asked_local=q_local,
+    spoken = f"{lead} {q_local}".strip()
+    record_turn(s["id"], turn_no, asked=f"{persona.ack(acked, b, 'en')} {question}".strip(),
+                asked_local=spoken,
                 heard_text=heard, heard_en=heard_en,
                 extractor_patch=json.dumps(patch_dict),
                 latency_ms=int((time.perf_counter() - t0) * 1000))
     return TurnOut(session_id=s["id"], beneficiary_id=b["id"],
-                   done=False, next_question=q_local,
+                   done=False, next_question=spoken,
                    top3=[dict(r) for r in top3])
 
 
@@ -245,7 +260,7 @@ async def _finish(b, s, top3, ranked, turn_no, t0, heard, heard_en, patch_dict) 
     # The "let me check" filler was already spoken in phase 1, so the result is
     # just the pathways. compose() renders native for en/hi/bn/ta/mr, else English.
     composed = await compose(top3, lang, b)
-    if lang in ("en", "hi", "bn", "ta", "mr"):
+    if lang in COMPOSER_LANGS:           # written natively, no translation needed
         composer_text = composed
     else:
         composer_text = await localize(composed, lang)
@@ -346,11 +361,14 @@ def _demand_ids_used(district: str | None, top3: list[dict]) -> list[str]:
 # and Indic combining marks (virama, matras, chandrabindu) are Mn/Mc — not \w —
 # so \bহ্যাঁ\b can never match. That bug used to strand Bengali and Tamil
 # callers at the consent gate forever.
+# The welcome ends "Shall we begin?", so "let's start" counts as a yes too.
 _AFFIRMATIVE_ASCII = ("yes", "yeah", "yep", "yup", "sure", "ok", "okay",
-                      "haan", "han", "ha", "jee", "ji", "hoy", "aam", "aan")
+                      "haan", "han", "ha", "jee", "ji", "hoy", "aam", "aan",
+                      "chalo", "chaliye", "shuru", "start", "begin", "go ahead")
 _AFFIRMATIVE_NATIVE = ("हाँ", "हा", "जी", "हां", "होय",          # hi / mr
-                       "হ্যাঁ", "হ্যা", "হাঁ", "জি",             # bn
-                       "ஆம்", "ஆமாம்", "சரி")                    # ta
+                       "चलिए", "चलो", "शुरू", "चला",
+                       "হ্যাঁ", "হ্যা", "হাঁ", "জি", "চলুন",     # bn
+                       "ஆம்", "ஆமாம்", "சரி", "தொடங்கலாம்")      # ta
 
 
 def _is_affirmative(text: str) -> bool:
@@ -374,12 +392,111 @@ def _served_districts() -> set[str]:
 _SERVED_CACHE: set[str] | None = None
 
 
+# Well-known districts whose spoken form doesn't transliterate close enough to
+# the table's spelling for a fuzzy match — colonial English spellings and names
+# with heavy glide/schwa loss. Written here as native-script or common-variant
+# spelling -> canonical district; the keys are folded through _norm_key at load
+# so they match caller input under the exact same rules.
+_ALIAS_RAW = {
+    "लखनऊ": "Lucknow",
+    "इंदौर": "Indore",
+    "जयपुर": "Jaipur",
+    "बेंगलुरु": "Bengaluru", "Bangalore": "Bengaluru",
+    "गुरुग्राम": "Gurugram", "Gurgaon": "Gurugram",
+    "Calcutta": "Kolkata",
+    "Bombay": "Mumbai",
+    "Madras": "Chennai",
+    "Poona": "Pune",
+    "Cawnpore": "Kanpur",
+    "Allahabad": "Prayagraj",
+    "Banaras": "Varanasi", "Benares": "Varanasi",
+    "Trivandrum": "Thiruvananthapuram",
+    "Vizag": "Visakhapatnam",
+    "கோயம்புத்தூர்": "Coimbatore",
+}
+
+
+def _collapse_vowels(s: str) -> str:
+    """Collapse runs of the same vowel so schwa/long-vowel drift lines up:
+    'patanaa' -> 'patana', 'kolokaata' -> 'kolokata'."""
+    return re.sub(r"([aeiou])\1+", r"\1", s)
+
+
+def _norm_key(name: str) -> str:
+    """Fold a district name to a script-agnostic comparison key: transliterate
+    any Indic text to Latin (Hindi schwa deletion happens there), lowercase,
+    keep only a-z, and collapse doubled vowels. Applied to both the reference
+    names and the caller input, so the two stay comparable.
+    'पटना' -> 'patna', 'Bhagalpur' -> 'bhagalpur'."""
+    s = (name or "").strip()
+    if _has_indic(s):
+        s = _to_latin(s)
+    return _collapse_vowels(re.sub(r"[^a-z]", "", s.lower()))
+
+
+# Alias keys folded through _norm_key so they match caller input identically.
+_DISTRICT_ALIASES = {_norm_key(k): v for k, v in _ALIAS_RAW.items() if _norm_key(k)}
+
+
+_DISTRICT_INDEX: list[tuple[str, dict]] | None = None
+
+
+def _district_index() -> list[tuple[str, dict]]:
+    """(normalized_key, row) for every reference district. Cached per process;
+    the table is small and rarely changes."""
+    global _DISTRICT_INDEX
+    if _DISTRICT_INDEX is None:
+        rows = q("select district, state, latitude, longitude from indian_districts")
+        _DISTRICT_INDEX = [(_norm_key(r["district"]), r) for r in rows]
+    return _DISTRICT_INDEX
+
+
 def _lookup_district(name: str) -> dict | None:
     """Return {district,state,latitude,longitude} for a REAL Indian district,
-    else None. Matches case-insensitively on the reference table."""
+    else None.
+
+    Callers speak in their own language, so STT returns the district in native
+    script (Devanagari / Bengali / Tamil) while the reference table stores Latin
+    names. We therefore match in three stages:
+      1. exact case-insensitive match on the Latin name (fast path, unchanged);
+      2. exact match on a transliterated, punctuation-stripped key
+         ('पटना' -> 'patanaa');
+      3. fuzzy match of that key against the whole table, to absorb schwa
+         deletion and STT spelling drift ('patanaa' ~ 'patna').
+    Only names that resolve to a real district are accepted; unrelated words
+    (e.g. 'दसवीं' = 10th class) fall below the threshold and are rejected."""
     rows = q("select district, state, latitude, longitude from indian_districts "
              "where lower(district)=lower(%s) limit 1", (name.strip(),))
-    return rows[0] if rows else None
+    if rows:
+        return rows[0]
+
+    key = _norm_key(name)
+    if len(key) < 3:
+        return None
+
+    # Curated aliases for non-phonetic English spellings (Lucknow, Varanasi…).
+    canonical = _DISTRICT_ALIASES.get(key)
+    if canonical:
+        rows = q("select district, state, latitude, longitude from indian_districts "
+                 "where lower(district)=lower(%s) limit 1", (canonical,))
+        if rows:
+            return rows[0]
+
+    # Fuzzy matching is risky for very short keys against ~770 names (a 3-letter
+    # filler word would collide), so only keys of 4+ chars are fuzzy-matched;
+    # shorter names must match exactly (handled above / by the equality check).
+    allow_fuzzy = len(key) >= 4
+    best, best_score = None, 0.0
+    for nk, row in _district_index():
+        if not nk:
+            continue
+        if key == nk:
+            return row
+        if allow_fuzzy:
+            score = difflib.SequenceMatcher(None, key, nk).ratio()
+            if score > best_score:
+                best_score, best = score, row
+    return best if best_score >= 0.74 else None
 
 
 def _validate_patch(patch: dict) -> dict[str, str]:

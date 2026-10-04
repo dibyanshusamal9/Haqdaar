@@ -1,71 +1,75 @@
-# ingesters/ — how NSQF & demand data gets into the database
+# ingesters/ — how data gets into the database
 
-There are **two** ingesters, for two different jobs. Both write to the **same
-Postgres database the voice app reads** (`DATABASE_URL`, default the local
-Docker Postgres `setu`).
+There is **one** ingester: the **Official India Data Pack loader**.
 
-| Path | What it does | When it runs | Writes to |
-|------|--------------|--------------|-----------|
-| `import_nsqf_extracted.py` | One-time bulk load of the **local NIELIT SQLite extract** (`DATABASE EXTRACTED/build/qualifications.db`) | manually, once | `qualifications` (+ side tables) |
-| `web/` | **Live weekly web scraper** — NCVET/NQR → courses, NCS → district demand | weekly cron (GitHub Actions) | `qualifications`, `demand_signals`, `ingest_runs`, `ingest_quarantine` |
+> ⚠️ The web scrapers (`ncs_scraper`, `nsqf_scraper`, `run_weekly`) have been
+> **deleted**. `livelihood_setu_official_dataset.xlsx` is now the sole source
+> of truth for qualifications.
 
-The old standalone TypeScript scraper (`livelihood-setu-ingest/`) has been
-**ported into `web/`** in this repo's own stack (Python + psycopg + our SQL
-schema), so there is now a single scraper location. `livelihood-setu-ingest/`
-can be deleted.
+## import_official_dataset.py
 
-## Where the data actually lives
+Bulk-loads the Official India Data Pack workbook into Postgres. Run it once
+after `bootstrap_db.py`, and again whenever the xlsx is refreshed.
+
+```bash
+# Default: looks for livelihood_setu_official_dataset.xlsx in the project root
+python -m ingesters.import_official_dataset
+
+# Or specify a custom path
+python -m ingesters.import_official_dataset --xlsx "C:/path/to/pack.xlsx"
+
+# Or set env-var (useful in CI/containers)
+OFFICIAL_DATASET_XLSX=/data/pack.xlsx python -m ingesters.import_official_dataset
+```
+
+### What it loads
+
+| Sheet | Table(s) | Notes |
+|-------|----------|-------|
+| NQR Qualifications | `qualifications` (active only) + `nqr_qualifications_raw` (all) | 2,814 rows total; 1,947 active |
+| District SC Profiles | `district_sc_profiles` | 640 districts, Census-2011 SC/ST demographics |
+| PM-AJAY Rules | `pmajay_rules` | 13 eligibility gates |
+| Official Sources | `data_sources` | 17 source registry entries |
+
+The loader **truncates `qualifications` and reloads from active NQR rows** on
+every run — this ensures the live corpus is always in sync with the workbook.
+Related tables (`centre_qualifications`, `qualification_eligibility`, etc.) are
+cascade-cleared and should be re-seeded from `db/seed/` afterward if needed.
+
+### How the voice app uses this data
+
+```
+livelihood_setu_official_dataset.xlsx
+    └─ import_official_dataset.py  (this ingester)
+         └─ qualifications table (Postgres)
+              └─ recommend_pathways() SQL function
+                   └─ ranker.py  (voice app)
+                        └─ session.py → recommendations → beneficiary
+```
+
+## Where the data lives
 
 Postgres, database `setu`. Inspect it directly:
 
 ```bash
-# list tables
-docker exec project-db-1 psql -U postgres -d setu -c "\dt"
+# List qualification sectors and counts
+docker exec project-db-1 psql -U postgres -d setu -c \
+  "select sector, count(*) from qualifications group by 1 order by 2 desc;"
 
-# the corpus the ranker matches against
-docker exec project-db-1 psql -U postgres -d setu -c "select sector, count(*) from qualifications group by 1 order by 2 desc;"
+# Record status breakdown
+docker exec project-db-1 psql -U postgres -d setu -c \
+  "select record_status, count(*) from qualifications group by 1;"
 
-# district demand
-docker exec project-db-1 psql -U postgres -d setu -c "select district, count(*) from demand_signals group by 1;"
+# PM-AJAY eligibility gates
+docker exec project-db-1 psql -U postgres -d setu -c \
+  "select rule_id, rule_name, hard_gate from pmajay_rules;"
 
-# scraper health (one row per run)
-docker exec project-db-1 psql -U postgres -d setu -c "select source, ran_at, rows_seen, rows_written, rows_quarantined from ingest_runs order by ran_at desc limit 10;"
-
-# rows the scraper rejected, for review
-docker exec project-db-1 psql -U postgres -d setu -c "select source, reason, created_at from ingest_quarantine where not reviewed order by created_at desc limit 20;"
+# District profiles loaded
+docker exec project-db-1 psql -U postgres -d setu -c \
+  "select count(*) from district_sc_profiles;"
 ```
 
-Schema is defined in `db/migrations/*.sql`. The tables:
-`qualifications`, `qualification_eligibility`, `qualification_pathways`,
-`qualification_modules`, `training_centres`, `centre_qualifications`,
-`demand_signals`, `beneficiaries`, `sessions`, `voice_turns`,
-`recommendations`, `enrollments`, `ingest_runs`, `ingest_quarantine`,
-`skill_synonyms`.
-
-## Running the weekly scraper
-
-```bash
-pip install -r ingesters/web/requirements.txt
-python -m playwright install --with-deps chromium
-python -m ingesters.web.run_weekly        # both scrapers
-python -m ingesters.web.nsqf_scraper      # just courses
-python -m ingesters.web.ncs_scraper       # just demand
-```
-
-The GitHub Action `.github/workflows/ingest-weekly.yml` runs
-`run_weekly` every Monday 03:00 IST and on the manual **Run workflow**
-button. It needs repo secrets: `DATABASE_URL`, `SLACK_INGEST_WEBHOOK_URL`.
-
-### ⚠️ Selectors need calibration before the first real run
-
-Both scrapers use **placeholder CSS selectors** (marked `# TODO(selector)`)
-because the government portals render results with framework-generated markup
-that has no stable ids. Until they're calibrated, a run scrapes 0 rows (and
-`run_weekly` exits non-zero so CI flags it). To calibrate:
-
-```bash
-python -m playwright codegen https://kaushalverse.ncvet.gov.in/homepage/repository
-python -m playwright codegen https://www.ncs.gov.in/job-seeker/Pages/JobSearch.aspx
-```
-Replace the `# TODO(selector)` lines with the real selectors. The rest of the
-pipeline (normalise → quarantine → upsert → record run) is done.
+Schema is defined in `db/migrations/*.sql`. Key tables:
+`qualifications`, `nqr_qualifications_raw`, `district_sc_profiles`,
+`pmajay_rules`, `data_sources`, `training_centres`, `beneficiaries`,
+`sessions`, `voice_turns`, `recommendations`.

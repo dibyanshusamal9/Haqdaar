@@ -34,8 +34,13 @@ class Settings(BaseSettings):
     # manisha are bulbul:v2 names — v3 rejects them with HTTP 400.)
     # `pace` < 1.0 slows delivery slightly for a gentler tone.
     sarvam_tts_speaker: str = "priya"
-    sarvam_tts_pace: float = 1.15
-    sarvam_tts_pitch: float = 0.0
+    sarvam_tts_pace: float = 1.25         # 0.5-2.0; 1.0 sounded too slow on calls
+    sarvam_tts_pitch: float = 0.0         # bulbul v1/v2 only
+    sarvam_tts_temperature: float = 0.6   # bulbul v3 expressiveness (0.01-2.0)
+    sarvam_tts_pause_s: float = 0.2       # silence between sentences
+    # Officer site: the access code officers enter to add or change job
+    # openings. Unset = officer editing is switched off.
+    officer_access_code: str | None = None
 
     # Extractor LLM
     extractor_provider: str = "mock"  # mock | anthropic | openai | sarvam | grok | groq | gemini

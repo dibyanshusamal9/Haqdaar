@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .logging import configure_logging, log
-from .routers import session, ivr, whatsapp, admin, voice
+from .routers import session, ivr, whatsapp, admin, voice, simulator, officer
 from .settings import settings
 import os
 
@@ -15,10 +15,12 @@ app.add_middleware(
 )
 
 app.include_router(session.router)
+app.include_router(simulator.router)
 app.include_router(ivr.router)
 app.include_router(whatsapp.router)
 app.include_router(admin.router)
 app.include_router(voice.router)
+app.include_router(officer.router)
 
 TTS_DIR = "/tmp/setu-tts"
 os.makedirs(TTS_DIR, exist_ok=True)

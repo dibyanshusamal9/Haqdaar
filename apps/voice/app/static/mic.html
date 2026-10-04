@@ -530,14 +530,28 @@ function addTurn(userTxt, resp) {
   // Only reveal the top-3 recommendations at the end of the interview;
   // during the Q&A they'd just be noise that changes every turn.
   const top3 = (resp.done && Array.isArray(resp.top3) ? resp.top3 : []).map(t => {
-    // Centre + location + distance. If no centre in the caller's own district,
-    // the ranker returns a nearby one (same-state) with its distance — show it
-    // with an explicit "nearest available" note so it's clear it's out-of-district.
-    let centreLine = '<span class="qp" style="color:var(--danger,#b45309)">No training centre listed yet — a mobiliser will confirm the nearest option.</span>';
+    // Centre + location + distance. Three cases:
+    //  1. centre_name set, nearest_fallback=false → local centre, show normally
+    //  2. centre_name set, nearest_fallback=true  → nearest available (other district)
+    //  3. centre_name null → truly no centre in DB, show mobiliser message
+    let centreLine;
     if (t.centre_name) {
-      const km = (t.distance_km != null) ? `~${t.distance_km} km` : '';
-      const loc = t.centre_address ? ` · ${t.centre_address}` : '';
-      centreLine = `<span class="qp">🏫 ${t.centre_name}${loc} ${km}</span>`;
+      const km     = (t.distance_km != null) ? `~${t.distance_km} km away` : '';
+      const addr   = t.centre_address ? ` · ${t.centre_address}` : '';
+      const dist   = t.centre_district || '';
+      const state  = (t.centre_state && t.centre_state !== dist) ? `, ${t.centre_state}` : '';
+      const loc    = (dist || state) ? ` (${dist}${state})` : '';
+      if (t.nearest_fallback) {
+        centreLine = `
+          <span class="qp" style="color:#7c6020">
+            📍 Nearest available centre: <strong>${t.centre_name}</strong>${loc}${addr}
+            ${km ? `<span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:99px;font-size:.78em;margin-left:6px">${km}</span>` : ''}
+          </span>`;
+      } else {
+        centreLine = `<span class="qp">🏫 <strong>${t.centre_name}</strong>${loc}${addr} ${km}</span>`;
+      }
+    } else {
+      centreLine = '<span class="qp" style="color:var(--danger,#b45309)">⚠ No training centre on record — a mobiliser will contact you to confirm.</span>';
     }
     return `
     <li>

@@ -32,7 +32,9 @@ if not DATABASE_URL:
 MIGRATION_FILES = sorted((ROOT / "db" / "migrations").glob("*.sql"))
 BOOTSTRAP_FILE  = ROOT / "db" / "supabase_bootstrap.sql"
 SEED_FILES      = [ROOT / "db" / "seed" / "seed.sql",
-                   ROOT / "db" / "seed" / "seed_nsqf_expansion.sql"]
+                   ROOT / "db" / "seed" / "seed_nsqf_expansion.sql",
+                   ROOT / "db" / "seed" / "seed_demand_all_india.sql",
+                   ROOT / "db" / "seed" / "seed_training_centres.sql"]
 
 
 def run_sql(cur, path: pathlib.Path) -> None:
@@ -103,7 +105,9 @@ def main() -> int:
             except Exception as e:
                 print(f"  {tbl:32s} — {type(e).__name__}: {str(e)[:80]}")
 
-    print("\nDone. Next: `python -m ingesters.import_nsqf_extracted` to load NIELIT rows.")
+    print("\nDone. Next: `python -m ingesters.import_official_dataset` to load "
+          "the Official India Data Pack (qualifications, PM-AJAY rules, SC "
+          "district profiles, sources).")
     return 0
 
 

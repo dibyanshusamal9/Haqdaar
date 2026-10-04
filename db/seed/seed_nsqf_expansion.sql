@@ -1,7 +1,18 @@
 -- Expansion of NSQF corpus with real SSC-issued QP codes across the sectors
 -- that Nalanda/Bhagalpur/Jhabua beneficiaries actually ask about.
 -- Sources: publicly listed by their Sector Skill Councils on ncvet.gov.in.
+--
+-- Safe to re-run: the file replaces its own rows instead of adding copies.
+-- Run after seed.sql.
 
+-- Files are UTF-8; say so explicitly so psql on Windows doesn't read them as WIN1252.
+set client_encoding = 'UTF8';
+
+begin;
+
+-- Codes that seed.sql also defines (CON/Q0104, HSS/Q5101, LSC/Q1112,
+-- AGR/Q7601, ASC/Q1401) keep seed.sql's version: only rows this file created
+-- (source_url exactly https://www.ncvet.gov.in) are refreshed.
 insert into qualifications
   (qp_code, name, sector, nsqf_level, duration_hours,
    entry_min_class, entry_min_age, mode,
@@ -54,14 +65,20 @@ values
   -- Telecom (TSSC) — supplements existing 1 row
   ('TEL/Q6100','Field Sales Executive (Telecom Products)','Telecom',4,320,10,18,'classroom',false,'https://www.ncvet.gov.in','2026-08-31'),
   ('TEL/Q7100','In-Store Promoter (Telecom Retail)','Telecom',3,270,10,18,'classroom',false,'https://www.ncvet.gov.in','2026-08-31')
-on conflict (qp_code) do nothing;
+on conflict (qp_code) do update set
+    name = excluded.name, sector = excluded.sector, nsqf_level = excluded.nsqf_level,
+    duration_hours = excluded.duration_hours, entry_min_class = excluded.entry_min_class,
+    entry_min_age = excluded.entry_min_age, mode = excluded.mode,
+    self_employment_track = excluded.self_employment_track,
+    evidence_date = excluded.evidence_date
+where qualifications.source_url = excluded.source_url;
 
 
 -- Demand signals for pilot districts, tied to the new QP codes, so the ranker
 -- has real "high demand near you" reasons to surface these.
-insert into demand_signals
-  (district, state, sector, qp_code, role_title, vacancies_90d, source_url, evidence_date)
-values
+-- Deletes the rows this block inserted last time (same district, QP, role and
+-- source), then inserts them again.
+with seed_jobs (district, state, sector, qp_code, role_title, vacancies_90d, source_url, evidence_date) as (values
   ('Nalanda',   'Bihar',          'Apparel',           'AMH/Q1001','Sewing Machine Operator',    180, 'https://www.ncs.gov.in','2026-08-31'),
   ('Nalanda',   'Bihar',          'Apparel',           'AMH/Q1002','Self-Employed Tailor',        90, 'https://www.ncs.gov.in','2026-08-31'),
   ('Nalanda',   'Bihar',          'Handloom',          'HSS/Q0106','Handloom Weaver',             65, 'https://handlooms.nic.in','2026-08-31'),
@@ -81,7 +98,17 @@ values
   ('Jhabua',    'Madhya Pradesh', 'Food Processing',   'FIC/Q5002','Food Processing Operator',    70, 'https://www.ficsi.in','2026-08-31'),
   ('Jhabua',    'Madhya Pradesh', 'Construction',      'CON/Q0202','Bar Bender',                 150, 'https://www.ncs.gov.in','2026-08-31'),
   ('Jhabua',    'Madhya Pradesh', 'Beauty & Wellness', 'BWS/Q0102','Assistant Beauty Therapist',  40, 'https://www.ncs.gov.in','2026-08-31')
-on conflict do nothing;
+), removed as (
+    delete from demand_signals d
+     using seed_jobs s
+     where d.district = s.district and d.qp_code = s.qp_code
+       and d.role_title = s.role_title and d.source_url = s.source_url
+       and d.entered_by is null           -- never touch officer-entered openings
+)
+insert into demand_signals
+  (district, state, sector, qp_code, role_title, vacancies_90d, source_url, evidence_date)
+select district, state, sector, qp_code, role_title, vacancies_90d, source_url, evidence_date::date
+from seed_jobs;
 
 
 -- Link some existing training centres to the new QPs so the ranker can also
@@ -99,3 +126,5 @@ where tc.district in ('Nalanda','Bhagalpur','Jhabua')
     'ASC/Q1402','THC/Q0301'
   )
 on conflict do nothing;
+
+commit;
