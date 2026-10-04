@@ -321,7 +321,7 @@ async def transcript(session_id: str):
                           "text": t.get("heard_text"),
                           "text_en": t.get("heard_en"), "turn": t["turn_no"]})
         if t.get("asked") or t.get("asked_local"):
-            convo.append({"role": "setu",
+            convo.append({"role": "raahi",
                           "text": t.get("asked_local") or t.get("asked"),
                           "text_en": t.get("asked"), "turn": t["turn_no"]})
 

@@ -32,7 +32,7 @@ LANG_TO_SARVAM = {"bn": "bn-IN", "en": "en-IN", "gu": "gu-IN", "hi": "hi-IN", "k
                 "ml": "ml-IN", "mr": "mr-IN", "or": "od-IN", "od": "od-IN", "pa": "pa-IN",
                 "ta": "ta-IN", "te": "te-IN"}
 
-_CACHE_PATH = os.path.join(tempfile.gettempdir(), "setu-i18n-cache.json")
+_CACHE_PATH = os.path.join(tempfile.gettempdir(), "raahi-i18n-cache.json")
 _lock = threading.Lock()
 _cache: dict[str, str] = {}
 

@@ -12,7 +12,7 @@ from ..settings import settings
 from ..logging import log
 
 
-CACHE_DIR = "/tmp/setu-tts"
+CACHE_DIR = "/tmp/raahi-tts"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 

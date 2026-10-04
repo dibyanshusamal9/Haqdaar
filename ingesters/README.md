@@ -3,7 +3,7 @@
 There is **one** ingester: the **Official India Data Pack loader**.
 
 > ⚠️ The web scrapers (`ncs_scraper`, `nsqf_scraper`, `run_weekly`) have been
-> **deleted**. `livelihood_setu_official_dataset.xlsx` is now the sole source
+> **deleted**. `data/raw/raahi-official-dataset.xlsx` is now the sole source
 > of truth for qualifications.
 
 ## import_official_dataset.py
@@ -12,7 +12,7 @@ Bulk-loads the Official India Data Pack workbook into Postgres. Run it once
 after `bootstrap_db.py`, and again whenever the xlsx is refreshed.
 
 ```bash
-# Default: looks for livelihood_setu_official_dataset.xlsx in the project root
+# Default: looks for data/raw/raahi-official-dataset.xlsx
 python -m ingesters.import_official_dataset
 
 # Or specify a custom path
@@ -39,7 +39,7 @@ cascade-cleared and should be re-seeded from `db/seed/` afterward if needed.
 ### How the voice app uses this data
 
 ```
-livelihood_setu_official_dataset.xlsx
+data/raw/raahi-official-dataset.xlsx
     └─ import_official_dataset.py  (this ingester)
          └─ qualifications table (Postgres)
               └─ recommend_pathways() SQL function
@@ -49,23 +49,23 @@ livelihood_setu_official_dataset.xlsx
 
 ## Where the data lives
 
-Postgres, database `setu`. Inspect it directly:
+Postgres, database `raahi`. Inspect it directly:
 
 ```bash
 # List qualification sectors and counts
-docker exec project-db-1 psql -U postgres -d setu -c \
+docker compose exec db psql -U postgres -d raahi -c \
   "select sector, count(*) from qualifications group by 1 order by 2 desc;"
 
 # Record status breakdown
-docker exec project-db-1 psql -U postgres -d setu -c \
+docker compose exec db psql -U postgres -d raahi -c \
   "select record_status, count(*) from qualifications group by 1;"
 
 # PM-AJAY eligibility gates
-docker exec project-db-1 psql -U postgres -d setu -c \
+docker compose exec db psql -U postgres -d raahi -c \
   "select rule_id, rule_name, hard_gate from pmajay_rules;"
 
 # District profiles loaded
-docker exec project-db-1 psql -U postgres -d setu -c \
+docker compose exec db psql -U postgres -d raahi -c \
   "select count(*) from district_sc_profiles;"
 ```
 

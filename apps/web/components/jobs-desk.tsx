@@ -7,7 +7,7 @@ import {
 } from "@/lib/officer";
 import { ArrowSquare, SearchIcon } from "@/components/ui";
 
-const PLACE_KEY = "setu.jobs.place";
+const PLACE_KEY = "raahi.jobs.place";
 const COUNTED_DAYS = 180;   // the recommender counts openings this recent
 const MAX_AGE_DAYS = 365;   // the backend refuses anything older
 

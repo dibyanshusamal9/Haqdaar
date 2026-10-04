@@ -2,12 +2,12 @@ name: Official Dataset Refresh
 
 # Reload the Official India Data Pack whenever the workbook is updated in the
 # repo, or manually via the "Run workflow" button. The old weekly web-scraper
-# workflow has been removed — livelihood_setu_official_dataset.xlsx is the sole
+# workflow has been removed — data/raw/raahi-official-dataset.xlsx is the sole
 # data source.
 on:
   push:
     paths:
-      - "livelihood_setu_official_dataset.xlsx"
+      - "data/raw/raahi-official-dataset.xlsx"
   workflow_dispatch: {}
 
 jobs:

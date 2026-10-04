@@ -1,17 +1,19 @@
-# Livelihood Setu — Officer Web
+# RAAHI — Officer dashboard
 
-Next.js 14 (App Router) + Tailwind. Implements the officer dashboard
-(FR-09) and explainability drill-down (FR-10 UI).
+Next.js 14 (App Router) + Tailwind. Officers sign in with the officer access
+code, then see calls, skills and job openings by district and keep job
+openings up to date.
 
 ## Pages
 
-    /                                 landing — pick district
-    /districts/[id]                   demand-vs-supply, funnel, gap tiles
-    /leads                            mobiliser queue (stalled enrollments)
-    /recommendations/[id]             explainability trail
+    /signin                     sign in (name + officer access code)
+    /                           overview: demand vs supply, maps, charts
+    /districts, /districts/[id] every district, and one district in detail
+    /jobs                       add, edit and delete job openings
+    /beneficiaries              callers on record (with delete)
+    /recommendations/[id]       why a caller got their suggestions
 
-Data comes from the voice API's `/admin/*` endpoints (server-side fetch)
-so RLS is enforced service-side.
+Data comes from the voice API's `/admin/*` and `/officer/*` endpoints.
 
 ## Run
 

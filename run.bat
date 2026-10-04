@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  Livelihood Setu — one-shot dev launcher (Windows)
+REM  RAAHI — one-shot dev launcher (Windows)
 REM
 REM  Detects whether DATABASE_URL points at local Docker Postgres
 REM  or Supabase, starts Docker Desktop if it is installed but not
@@ -83,7 +83,7 @@ if errorlevel 1 goto :fail
 echo   Waiting for Postgres to accept connections...
 set /a tries=0
 :waitdb
-docker exec project-db-1 pg_isready -U postgres -d setu >nul 2>&1
+docker compose exec -T db pg_isready -U postgres -d raahi >nul 2>&1
 if not errorlevel 1 goto :dbready
 set /a tries+=1
 if !tries! GEQ 40 (echo   ! Postgres did not become ready in 40s & goto :fail)
@@ -116,12 +116,12 @@ if errorlevel 1 (
 )
 
 REM Load the Official India Data Pack (sole qualification source — scrapers removed).
-REM The workbook livelihood_setu_official_dataset.xlsx must be in the project root.
+REM The workbook data\raw\raahi-official-dataset.xlsx must be present.
 echo   Importing Official India Data Pack ^(NQR qualifications, PM-AJAY rules...^)
 python -m ingesters.import_official_dataset
 if errorlevel 1 (
-  echo   ! Official dataset import FAILED - check that livelihood_setu_official_dataset.xlsx
-  echo     is present in the project root. The voice app will have no qualifications.
+  echo   ! Official dataset import FAILED - check that data\raw\raahi-official-dataset.xlsx
+  echo     is present. The voice app will have no qualifications.
   goto :fail
 )
 echo   OK  Official dataset imported
@@ -141,8 +141,8 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3000 " ^| findstr LISTENING
 
 echo.
 echo === [6/6] Launching voice API and dashboard ===
-start "Setu Voice API" cmd /k "cd /d %~dp0apps\voice && python -m uvicorn app.main:app --port 8000 --host 127.0.0.1"
-start "Setu Web"       cmd /k "cd /d %~dp0apps\web   && pnpm dev"
+start "RAAHI Voice API" cmd /k "cd /d %~dp0apps\voice && python -m uvicorn app.main:app --port 8000 --host 127.0.0.1"
+start "RAAHI Dashboard" cmd /k "cd /d %~dp0apps\web   && pnpm dev"
 
 echo   Waiting for the voice API...
 set /a tries=0
@@ -160,13 +160,10 @@ echo   OK  Voice API responding
 echo.
 echo ============================================================
 echo   Ready.
-echo     Mic demo   :  http://127.0.0.1:8000/ui/mic.html
 echo     API docs   :  http://127.0.0.1:8000/docs
 echo     Dashboard  :  http://localhost:3000
 if defined USE_SUPABASE (echo     Database   :  Supabase ^(cloud^)) else (echo     Database   :  Local Docker Postgres)
 echo ============================================================
-rundll32 url.dll,FileProtocolHandler http://127.0.0.1:8000/ui/mic.html
-timeout /t 1 /nobreak >nul
 rundll32 url.dll,FileProtocolHandler http://localhost:3000
 echo.
 echo   Two console windows opened (voice + web). Close them to stop.

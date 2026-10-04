@@ -43,7 +43,7 @@ async def converse(
     reply_audio_url = None
     if reply_text:
         path_or_url = await tts.synthesise(reply_text, language)
-        # tts returns file:///tmp/setu-tts/xxxx.wav — expose it via /tts/{file}
+        # tts returns file:///tmp/raahi-tts/xxxx.wav — expose it via /tts/{file}
         if path_or_url.startswith("file://"):
             fname = path_or_url.rsplit("/", 1)[-1]
             reply_audio_url = f"/tts/{fname}"

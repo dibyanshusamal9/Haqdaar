@@ -1,4 +1,6 @@
-# Livelihood Setu
+# RAAHI
+
+Rural AI Advisor for Household Income.
 
 Voice-first AI counsellor for NSQF-aligned skilling under PM-AJAY GIA.
 A beneficiary calls a number, speaks their answers in their own language,
@@ -13,12 +15,14 @@ Repo: <https://github.com/Nidhish01/Livelihood-Setu>
       voice/         Python FastAPI — voice pipeline, IVR/WhatsApp webhooks,
                      STT, LLM extractor, ranker, composer, pack sender
       web/           Next.js 14 (App Router) — officer dashboard
+      caller-site/   Next.js 16 — RAAHI caller website and web call
+    data/raw/        raahi-official-dataset.xlsx (Official India Data Pack)
     db/
       migrations/    Postgres/Supabase schema (base tables, ranker SQL, triggers)
       seed/          Seed corpus — QPs, centres, district demand
       supabase_bootstrap.sql   Side-table adds specific to Supabase
     ingesters/       NSQF ingest scripts (NIELIT extract loader is the main one)
-    docs/            Architecture notes and PRD
+    docs/            Architecture, SIH 2026 submission write-up, testing guide
     bootstrap_db.py  One-shot migrate + seed against DATABASE_URL
     run.bat          Windows launcher (auto-detects Supabase vs local Docker)
     stop.bat         Kill dev servers + docker
@@ -29,11 +33,11 @@ Repo: <https://github.com/Nidhish01/Livelihood-Setu>
 
 1. Install Docker Desktop, Python 3.11, Node 24, pnpm.
 2. `cp .env.example .env` — keep the local `DATABASE_URL` line
-   (`postgresql://postgres:postgres@localhost:5432/setu`), fill in your
+   (`postgresql://postgres:postgres@localhost:5432/raahi`), fill in your
    Sarvam key + your extractor LLM key (Groq recommended, free at
    <https://console.groq.com/keys>).
 3. `run.bat` — starts Postgres, seeds the corpus, launches the voice API
-   at :8000, the dashboard at :3000, and opens the mic demo in your
+   at :8000 and the dashboard at :3000, and opens the dashboard in your
    browser. Two console windows appear (voice, web); close them to stop.
 
 ---

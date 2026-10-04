@@ -7,7 +7,7 @@ from .settings import settings
 import os
 
 configure_logging()
-app = FastAPI(title="Livelihood Setu Voice", version="0.1.0")
+app = FastAPI(title="RAAHI Voice", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"],
@@ -22,12 +22,9 @@ app.include_router(admin.router)
 app.include_router(voice.router)
 app.include_router(officer.router)
 
-TTS_DIR = "/tmp/setu-tts"
+TTS_DIR = "/tmp/raahi-tts"
 os.makedirs(TTS_DIR, exist_ok=True)
 app.mount("/tts", StaticFiles(directory=TTS_DIR), name="tts")
-
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-app.mount("/ui", StaticFiles(directory=STATIC_DIR, html=True), name="ui")
 
 
 @app.get("/health")

@@ -4,13 +4,13 @@
 All web scrapers (ncs_scraper, nsqf_scraper) have been removed.
 This importer is the only way qualifications enter the system.
 
-Source: livelihood_setu_official_dataset.xlsx (5 sheets — NQR qualifications,
+Source: data/raw/raahi-official-dataset.xlsx (5 sheets — NQR qualifications,
 Census SC district profiles, PM-AJAY rules, official sources, README).
 
 The workbook is resolved in this order:
   1. --xlsx <path>  argument passed on the command line
   2. OFFICIAL_DATASET_XLSX environment variable
-  3. livelihood_setu_official_dataset.xlsx in the project root (auto-detected)
+  3. data/raw/raahi-official-dataset.xlsx (auto-detected)
 
 This REPLACES the qualifications corpus with the official active NQR set and
 loads the pack's reference tables. Run after migrations:
@@ -48,10 +48,10 @@ load_dotenv(ROOT / ".env")
 _env_xlsx = os.getenv("OFFICIAL_DATASET_XLSX", "")
 DEFAULT_XLSX = (
     Path(_env_xlsx) if _env_xlsx
-    else ROOT / "livelihood_setu_official_dataset.xlsx"
+    else ROOT / "data" / "raw" / "raahi-official-dataset.xlsx"
 )
 DATABASE_URL = os.getenv("DATABASE_URL",
-                          "postgresql://postgres:postgres@localhost:5432/setu")
+                          "postgresql://postgres:postgres@localhost:5432/raahi")
 
 # Sectors that typically lead to own-account / micro-enterprise work.
 _SELF_EMPLOY_HINTS = (
@@ -299,14 +299,14 @@ def relink_centre_qualifications(cur) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Load livelihood_setu_official_dataset.xlsx into Postgres. "
+        description="Load data/raw/raahi-official-dataset.xlsx into Postgres. "
                     "This is the SOLE data ingestion source for the system."
     )
     ap.add_argument(
         "--xlsx",
         default=str(DEFAULT_XLSX),
         help="Path to the Official India Data Pack workbook "
-             "(default: livelihood_setu_official_dataset.xlsx in the project root, "
+             "(default: data/raw/raahi-official-dataset.xlsx, "
              "or OFFICIAL_DATASET_XLSX env var)",
     )
     args = ap.parse_args()
