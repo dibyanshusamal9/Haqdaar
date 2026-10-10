@@ -1,6 +1,6 @@
 """Mock extractor behaviour — extract only what the answer states."""
 import pytest
-from app.services.extractor import _mock
+from app.services.extractor import _mock, skill_words_in
 from app.models.beneficiary import BeneficiaryPatch
 
 
@@ -19,6 +19,45 @@ def test_interest_keeps_callers_own_words():
     assert "telecom" in (b.interests or [])
     p = _mock("What work interests you?", "weaving", "en")
     assert "weaving" in (BeneficiaryPatch(**p).interests or [])
+
+
+def test_textile_interest_in_any_script():
+    # The English word written in Devanagari, as callers type and say it.
+    p = _mock("What kind of work interests you?", "टेक्सटाइल्स", "hi")
+    assert "textile" in (BeneficiaryPatch(**p).interests or [])
+    p = _mock("What work interests you?", "textiles", "en")
+    assert "textile" in (BeneficiaryPatch(**p).interests or [])
+
+
+def test_skill_words_whole_words_only():
+    vocab = ["electrician", "mobile", "mobile repair", "it", "textile"]
+    assert skill_words_in("I want to become an electrician", vocab) == ["electrician"]
+    # the longer phrase wins, and a plural counts
+    assert skill_words_in("Mobile repair work", vocab) == ["mobile repair"]
+    assert skill_words_in("Textiles", vocab) == ["textile"]
+    # "it" is not found inside "with"
+    assert skill_words_in("I want to work with my hands", vocab) == []
+
+
+def test_skill_answer_translated_to_english(monkeypatch):
+    """A Hindi skill answer is translated and searched in English, even though
+    the rules read Hindi natively; with no translation nothing is added."""
+    import asyncio
+    from app.routers import session
+
+    async def fake_to_english(text, lang, *, always=False):
+        return {"इलेक्ट्रीशियन बनना है": "I want to become an electrician",
+                "टेक्सटाइल्स": "Textiles"}.get(text, text) if always else text
+
+    monkeypatch.setattr(session, "to_english", fake_to_english)
+    monkeypatch.setattr(session, "_skill_vocabulary", lambda: ["electrician", "driver"])
+    run = lambda heard: asyncio.run(session._english_interests(heard, "hi"))
+    assert run("इलेक्ट्रीशियन बनना है") == ["electrician"]
+    # not in the vocabulary, but short: kept for the course-name search
+    assert run("टेक्सटाइल्स") == ["textiles"]
+    # translation unavailable (returns the text unchanged): nothing to add
+    assert run("कुछ और") == []
+    assert asyncio.run(session._english_interests("driver", "en")) == []
 
 
 def test_age_extraction():
