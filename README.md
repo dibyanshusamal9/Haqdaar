@@ -7,7 +7,11 @@ A beneficiary calls a number, speaks their answers in their own language,
 and receives three ranked pathways with a spoken reason for each — grounded
 in real NSQF qualifications, real training centres, and real district demand data.
 
-Repo: <https://github.com/Nidhish01/Livelihood-Setu>
+Repo: <https://github.com/dibyanshusamal9/Raahi>
+
+Built for **Smart India Hackathon 2026**. District officers use a dashboard
+to see calls, skills and job openings by district and to keep the openings
+up to date.
 
 ## Layout
 
@@ -26,6 +30,7 @@ Repo: <https://github.com/Nidhish01/Livelihood-Setu>
     bootstrap_db.py  One-shot migrate + seed against DATABASE_URL
     run.bat          Windows launcher (auto-detects Supabase vs local Docker)
     stop.bat         Kill dev servers + docker
+    .github/workflows/   Re-imports the dataset when the workbook changes
 
 ---
 
@@ -39,6 +44,19 @@ Repo: <https://github.com/Nidhish01/Livelihood-Setu>
 3. `run.bat` — starts Postgres, seeds the corpus, launches the voice API
    at :8000 and the dashboard at :3000, and opens the dashboard in your
    browser. Two console windows appear (voice, web); close them to stop.
+4. Start the caller website (the public RAAHI site with the web call) in
+   another terminal:
+   ```
+   cd apps/caller-site
+   npm install
+   npx next dev -p 3001
+   ```
+
+| What | Where |
+|---|---|
+| Caller website | http://localhost:3001 |
+| Officer dashboard | http://localhost:3000 (sign in with the `OFFICER_ACCESS_CODE` from `.env`) |
+| Voice API docs | http://127.0.0.1:8000/docs |
 
 ---
 
@@ -78,7 +96,8 @@ Repo: <https://github.com/Nidhish01/Livelihood-Setu>
    python -m ingesters.import_official_dataset
    ```
 
-6. **Run the app** — `run.bat` (auto-detects Supabase and skips Docker).
+6. **Run the app** — `run.bat` (auto-detects Supabase and skips Docker),
+   then start the caller website as in step 4 of the local quickstart.
 
 That's it. Your voice pipeline now reads/writes Supabase.
 
@@ -107,8 +126,14 @@ strips any field the LLM invented without evidence in the user's answer.
 FR-01 → FR-10, three pilot districts (Nalanda, Bhagalpur, Jhabua), four
 languages (Hindi, Bengali, Tamil, Marathi) plus English, demo cohort of
 ~30, officer dashboard for one district. Kiosk PWA, DTMF fallback,
-session resumption and weekly ingest are V1.1 (scaffolded, not wired
-here).
+session resumption are V1.1 (scaffolded, not wired here).
+
+## Dataset refresh
+
+`.github/workflows/ingest-weekly.yml` re-imports the Official India Data
+Pack whenever `data/raw/raahi-official-dataset.xlsx` changes, or on demand
+from the Actions tab ("Run workflow"). It needs the repository secret
+`DATABASE_URL`, pointing at a database GitHub can reach (such as Supabase).
 
 ## Data honesty
 
