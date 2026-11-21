@@ -32,19 +32,35 @@ call :env EXOTEL_FLOW_EDIT_URL FLOW_URL
 
 echo === [1/6] Database ===
 netstat -ano | findstr ":5433 " | findstr LISTENING >nul
-if errorlevel 1 (
-  if exist "%PG_DIR%\bin\pg_ctl.exe" (
-    echo   Starting PostgreSQL from "%PG_DIR%" ...
-    "%PG_DIR%\bin\pg_ctl.exe" -D "%PG_DIR%\data" -l "%PG_DIR%\server.log" -o "-p 5433" -W start >nul
-    netstat -ano | findstr ":5433 " | findstr LISTENING >nul || (echo   ! PostgreSQL did not start. See "%PG_DIR%\server.log". & goto :fail)
-  ) else (
-    echo   ! PostgreSQL is not running on port 5433 and was not found at "%PG_DIR%".
-    echo     Set HAQDAAR_PG_DIR in .env, or run "docker compose up -d".
-    goto :fail
-  )
-) else (
+if not errorlevel 1 (
   echo   PostgreSQL already running.
+  goto :db_ready
 )
+if not exist "%PG_DIR%\bin\pg_ctl.exe" (
+  echo   ! PostgreSQL is not running on port 5433 and was not found at "%PG_DIR%".
+  echo     Set HAQDAAR_PG_DIR in .env, or run "docker compose up -d".
+  goto :fail
+)
+echo   Starting PostgreSQL from "%PG_DIR%" ...
+REM Started in its own hidden process: closing this window (or any other) must not stop
+REM the database. After an unclean Windows shutdown it first runs crash recovery, which
+REM can take a little while, so wait for it to accept connections.
+set "PG_EXE=%PG_DIR%\bin\pg_ctl.exe"
+powershell -NoProfile -Command "$q=[char]34; Start-Process -WindowStyle Hidden -FilePath $env:PG_EXE -ArgumentList ('-D '+$q+$env:PG_DIR+'\data'+$q+' -l '+$q+$env:PG_DIR+'\server.log'+$q+' -o '+$q+'-p 5433'+$q+' start')"
+set "PG_UP="
+for /l %%i in (1,1,30) do (
+  if not defined PG_UP (
+    timeout /t 2 /nobreak >nul
+    netstat -ano | findstr ":5433 " | findstr LISTENING >nul && set "PG_UP=1"
+  )
+)
+if not defined PG_UP (
+  echo   ! PostgreSQL did not start within a minute. See its log:
+  echo     %PG_DIR%\server.log
+  goto :fail
+)
+echo   PostgreSQL started.
+:db_ready
 
 echo === [2/6] API dependencies and build ===
 pushd apps\api

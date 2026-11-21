@@ -1,8 +1,10 @@
+import { appendFile, mkdir } from 'node:fs/promises';
 import type { IncomingMessage, Server } from 'node:http';
+import * as path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { Injectable, Logger } from '@nestjs/common';
 import { RawData, WebSocket, WebSocketServer } from 'ws';
-import { config } from '../config';
+import { config, REPO_ROOT } from '../config';
 import { SttService } from '../profile/stt.service';
 import { CallLanguage, MENU, MENU_KEYS } from './call.script';
 import { CallService, CallTurnInput } from './call.service';
@@ -19,6 +21,30 @@ import { TtsService } from './tts.service';
  */
 
 export const VOICEBOT_PATH = '/exotel/voicebot';
+
+/** Phone-line events also go to apps/api/logs/voicebot.log (git-ignored), to debug real calls. */
+const LOG_FILE = path.join(REPO_ROOT, 'apps', 'api', 'logs', 'voicebot.log');
+let logDirReady: Promise<unknown> | null = null;
+function fileLog(level: string, message: string) {
+  if (process.env.JEST_WORKER_ID) return;
+  logDirReady ??= mkdir(path.dirname(LOG_FILE), { recursive: true });
+  void logDirReady.then(() => appendFile(LOG_FILE, `${new Date().toISOString()} ${level} ${message}\n`)).catch(() => undefined);
+}
+
+class VoicebotLogger extends Logger {
+  log(message: string) {
+    super.log(message);
+    fileLog('LOG ', message);
+  }
+  warn(message: string) {
+    super.warn(message);
+    fileLog('WARN', message);
+  }
+  error(message: string) {
+    super.error(message);
+    fileLog('ERR ', message);
+  }
+}
 
 export const TIMING = {
   minSpeechMs: 250, // this much sound means the caller has started speaking
@@ -68,7 +94,7 @@ export interface Socket {
 }
 
 export class VoicebotSession {
-  private readonly log = new Logger('Voicebot');
+  private readonly log = new VoicebotLogger('Voicebot');
   private streamSid = '';
   private callTag = '';
   private rate = config.exotel.sampleRate;
@@ -454,7 +480,7 @@ export class VoicebotSession {
 /** Accepts Exotel's WebSocket connections on the API's HTTP server. */
 @Injectable()
 export class VoicebotGateway {
-  private readonly log = new Logger('Voicebot');
+  private readonly log = new VoicebotLogger('Voicebot');
 
   constructor(
     private readonly calls: CallService,
@@ -467,15 +493,25 @@ export class VoicebotGateway {
     server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (url.pathname !== VOICEBOT_PATH) {
+        this.log.warn(`WebSocket on unknown path ${url.pathname} refused`);
         socket.destroy();
         return;
       }
+      this.log.log(`Exotel connected (${req.headers['user-agent'] ?? 'no user-agent'})`);
       wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
         const session = new VoicebotSession(ws, { calls: this.calls, stt: this.stt, tts: this.tts }, url.searchParams.get('token'));
+        let first = true;
         ws.on('message', (data: RawData) => {
-          session.onMessage(data.toString()).catch((err) => this.log.error(`Voicebot message failed: ${(err as Error).message}`));
+          const raw = data.toString();
+          // What Exotel sends first (connected/start) shows its exact format and account.
+          if (first || raw.includes('"start"')) this.log.log(`first message: ${raw.slice(0, 600)}`);
+          first = false;
+          session.onMessage(raw).catch((err) => this.log.error(`Voicebot message failed: ${(err as Error).message}`));
         });
-        ws.on('close', () => session.dispose());
+        ws.on('close', (code, reason) => {
+          this.log.log(`Exotel stream closed (code ${code}${reason.length ? `, ${reason.toString()}` : ''})`);
+          session.dispose();
+        });
         ws.on('error', (err) => this.log.warn(`Voicebot socket error: ${err.message}`));
       });
     });
