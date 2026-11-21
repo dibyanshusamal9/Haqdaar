@@ -67,3 +67,10 @@ phone-line-url.txt
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- Raw recordings --------------------------------------------------------------
+# Screen/phone captures dropped in the repository root are source material (often over
+# GitHub's 100 MB limit); finished videos live in docs/presentations/.
+/*.mp4
+/*.mov
+/*.mkv
