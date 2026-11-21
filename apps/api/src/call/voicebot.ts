@@ -31,6 +31,11 @@ function fileLog(level: string, message: string) {
   void logDirReady.then(() => appendFile(LOG_FILE, `${new Date().toISOString()} ${level} ${message}\n`)).catch(() => undefined);
 }
 
+/** Hides the caller's number (and ours) in logged Exotel messages: "from":"07002074076" -> "from":"…76". */
+export function maskNumbers(text: string): string {
+  return text.replace(/"(from|to)"\s*:\s*"\+?\d*(\d{2})"/g, '"$1":"…$2"');
+}
+
 class VoicebotLogger extends Logger {
   log(message: string) {
     super.log(message);
@@ -504,7 +509,8 @@ export class VoicebotGateway {
         ws.on('message', (data: RawData) => {
           const raw = data.toString();
           // What Exotel sends first (connected/start) shows its exact format and account.
-          if (first || raw.includes('"start"')) this.log.log(`first message: ${raw.slice(0, 600)}`);
+          // Phone numbers are masked: Haqdaar keeps no record of who called.
+          if (first || raw.includes('"start"')) this.log.log(`first message: ${maskNumbers(raw.slice(0, 600))}`);
           first = false;
           session.onMessage(raw).catch((err) => this.log.error(`Voicebot message failed: ${(err as Error).message}`));
         });

@@ -1,7 +1,7 @@
 import { CallService } from '../src/call/call.service';
 import { config } from '../src/config';
 import { chunksForExotel, pcmToWav, resample, rms, wavToPcm } from '../src/call/pcm';
-import { TIMING, VoicebotSession } from '../src/call/voicebot';
+import { maskNumbers, TIMING, VoicebotSession } from '../src/call/voicebot';
 import { ExtractorService } from '../src/profile/extractor.service';
 
 // A whole Exotel phone call against a fake socket: real call logic and extractor, scripted
@@ -230,5 +230,11 @@ describe('pcm helpers', () => {
     const chunks = chunksForExotel(Buffer.alloc(10_000));
     expect(chunks.every((c) => c.length % 320 === 0 && c.length >= 3200)).toBe(true);
     expect(chunks.reduce((n, c) => n + c.length, 0)).toBeGreaterThanOrEqual(10_000);
+  });
+});
+
+describe('call log privacy', () => {
+  it('masks phone numbers in logged Exotel messages', () => {
+    expect(maskNumbers('{"from":"07002074076","to":"08047291722","x":1}')).toBe('{"from":"…76","to":"…22","x":1}');
   });
 });
