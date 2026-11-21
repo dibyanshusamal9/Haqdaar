@@ -1,14 +1,14 @@
-# Local dev alternative to Supabase — spin a Postgres you can point DATABASE_URL at.
-# For real work, use a Supabase project in ap-south-1 (see README).
+# Local PostgreSQL for Haqdaar.ai. The API applies its own migrations on start
+# (apps/api/db/migrations), so the database only needs to exist.
 services:
   db:
     image: postgres:16
     environment:
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: raahi
+      POSTGRES_DB: haqdaar
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports: ["5432:5432"]
     volumes:
-      - raahi_pg:/var/lib/postgresql/data
-      - ./db/migrations:/docker-entrypoint-initdb.d
+      - haqdaar_pg:/var/lib/postgresql/data
 volumes:
-  raahi_pg:
+  haqdaar_pg:

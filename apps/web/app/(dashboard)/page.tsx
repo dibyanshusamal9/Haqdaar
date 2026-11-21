@@ -1,139 +1,107 @@
 import Link from "next/link";
-import { api } from "@/lib/server-api";
-import { PLATFORM } from "@/lib/brand";
-import { fmt, languageName } from "@/lib/format";
-import { ArrowCircle, ArrowIcon, PageHeader, Panel, Stat } from "@/components/ui";
 import { BarList } from "@/components/charts/bar-list";
-import { ChartCard, MiniTable } from "@/components/charts/chart-card";
-import { ColumnChart } from "@/components/charts/column-chart";
-import { DemandSupply, type Area } from "@/components/charts/demand-supply";
-import { IndiaMap, type DistrictPoint } from "@/components/charts/india-map";
+import { PageHeader, Panel, Stat } from "@/components/ui";
+import { RunStatus, type Run } from "@/components/run-status";
+import { fmt, fmtDateTime } from "@/lib/format";
+import { api } from "@/lib/server-api";
+
+type Overview = {
+  stats: {
+    total: number;
+    central: number;
+    state: number;
+    withRules: number;
+    flagged: number;
+    predicates: number;
+    corpusVersion: number;
+    states: { state: string; count: number }[];
+    categories: { category: string; count: number }[];
+  };
+  review: { status: string; count: number }[];
+  matches: { total: number; last7Days: number; avgDurationMs: number; avgResults: number; voice: number; text: number; form: number };
+  runs: Run[];
+};
 
 export const dynamic = "force-dynamic";
 
-type Overview = {
-  kpis: {
-    calls: number;
-    callers: number;
-    districts_reached: number;
-    openings: number;
-    districts_with_openings: number;
-    centres: number;
-  };
-  calls_by_day: { day: string; calls: number }[];
-  languages: { language: string; calls: number }[];
-  skills: { skill: string; calls: number }[];
-  areas: Area[];
-  districts: DistrictPoint[];
+const REVIEW_LABEL: Record<string, string> = {
+  auto: "Normalised automatically",
+  flagged: "Flagged for review",
+  approved: "Approved by a curator",
+  edited: "Edited by a curator",
 };
-
-const day = (d: string, opts: Intl.DateTimeFormatOptions) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", opts);
 
 export default async function OverviewPage() {
   const o = await api<Overview>("/admin/overview");
-  const { kpis } = o;
-  const days = o.calls_by_day.map((d) => ({
-    key: d.day,
-    label: day(d.day, { weekday: "short", day: "numeric", month: "short" }),
-    tick: day(d.day, { day: "numeric", month: "short" }),
-    value: d.calls,
-  }));
-  const lastMonth = days.reduce((sum, d) => sum + d.value, 0);
+  const s = o.stats;
+  const lastRun = o.runs.find((r) => r.status === "succeeded");
 
   return (
-    <div className="space-y-6">
-      <PageHeader title={PLATFORM}>
-        Calls to RAAHI and job openings across India: where callers are, the skills
-        they ask for, and whether there are jobs for them.
+    <div className="space-y-8">
+      <PageHeader eyebrow="Overview" title="The scheme corpus">
+        Every scheme scraped from myscheme.gov.in, the eligibility rules derived from it, and how
+        citizens are using the matcher. Corpus version <strong className="text-ink">v{s.corpusVersion}</strong>
+        {lastRun && <> · last successful run {fmtDateTime(lastRun.finishedAt)}</>}.
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Stat label="Calls received" value={kpis.calls} note={`${fmt(kpis.callers)} people on record`} />
-        <Stat label="Districts reached" value={kpis.districts_reached} note="callers' home districts" />
-        <Stat
-          label="Job openings"
-          value={kpis.openings}
-          note={`last 180 days, in ${fmt(kpis.districts_with_openings)} districts`}
-        />
-        <Stat label="Training centres" value={kpis.centres} />
+        <Stat label="Schemes in the corpus" value={s.total} note={`${fmt(s.central)} central · ${fmt(s.state)} state/UT`} />
+        <Stat label="Schemes with structured rules" value={s.withRules} note={`${fmt(s.predicates)} conditions in total`} />
+        <Stat label="Flagged for review" value={s.flagged} note="eligibility text the normaliser could not turn into rules" />
+        <Stat label="Matches run" value={o.matches.total} note={`${fmt(o.matches.last7Days)} in the last 7 days · avg ${fmt(o.matches.avgDurationMs)} ms`} />
       </div>
 
-      <Panel
-        title="Demand vs supply by skill area"
-        subtitle="Calls asking for a skill, against job openings in that skill's sector, across India"
-      >
-        <DemandSupply areas={o.areas} />
-      </Panel>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <IndiaMap
-          points={o.districts}
-          measure="calls"
-          title="Calls by district"
-          subtitle="Where callers live. Click a district to open it."
-        />
-        <IndiaMap
-          points={o.districts}
-          measure="openings"
-          title="Job openings by district"
-          subtitle="Openings recorded in the last 180 days."
-        />
-      </div>
-      <p className="-mt-3 text-xs text-ink-soft">
-        Dot positions are approximate for some districts.{" "}
-        <Link href="/districts" className="font-medium text-violet-700 underline-offset-2 hover:underline">
-          See every district as a table
-        </Link>
-      </p>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Most-wanted skills" subtitle="Calls by the skill the caller asked for">
-          <BarList
-            measure="calls"
-            rows={o.skills.map((s) => ({ label: s.skill, value: s.calls }))}
-            empty="No caller has named a skill yet."
-          />
-        </Panel>
-        <Panel title="Calls by language" subtitle="The language each call was in">
-          <BarList
-            measure="calls"
-            rows={o.languages.map((l) => ({ label: languageName(l.language), value: l.calls }))}
-            empty="No calls yet."
-          />
-        </Panel>
-      </div>
-
-      <ChartCard
-        title="Calls per day"
-        subtitle={`Last 30 days: ${fmt(lastMonth)} ${lastMonth === 1 ? "call" : "calls"}`}
-        chart={<ColumnChart columns={days} unit={["call", "calls"]} />}
-        table={<MiniTable head={["Day", "Calls"]} rows={[...days].reverse().map((d) => [d.label, fmt(d.value)])} />}
-      />
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Link
-          href="/jobs"
-          className="group relative flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-[24px] bg-gradient-to-r from-violet-700 via-violet-600 to-violet-500 px-6 py-6 text-white shadow-lift transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-200 sm:px-8 lg:col-span-2"
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel
+          title="Review status"
+          subtitle="FR-08: schemes the normaliser could not fully handle wait here for a curator."
+          action={<Link href="/review" className="btn-ghost">Open the queue</Link>}
         >
-          <span aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 h-60 w-60 rounded-full bg-white/15 blur-2xl" />
-          <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-72 rounded-full bg-fuchsia-300/20 blur-3xl" />
-          <span className="relative">
-            <span className="block text-sm text-white/85">For district officers</span>
-            <span className="mt-1 block text-xl font-semibold tracking-tight sm:text-2xl">Add job openings</span>
-          </span>
-          <span className="relative grid h-11 w-11 place-items-center rounded-full bg-white text-violet-700 transition group-hover:scale-105">
-            <ArrowIcon className="h-4 w-4" />
-          </span>
-        </Link>
-        <Link href="/beneficiaries" className="card group flex items-start justify-between gap-4">
-          <div>
-            <div className="text-sm text-ink-faint">Records</div>
-            <div className="mt-1 text-lg font-semibold tracking-tight">All beneficiaries ({fmt(kpis.callers)})</div>
-          </div>
-          <ArrowCircle />
-        </Link>
+          <BarList measure="calls" empty="No schemes yet. Run a scrape." rows={o.review.map((r) => ({ label: REVIEW_LABEL[r.status] ?? r.status, value: r.count, href: `/review?status=${r.status}` }))} />
+        </Panel>
+
+        <Panel title="How citizens gave their details" subtitle={`Average ${fmt(o.matches.avgResults)} schemes returned per match.`}>
+          <BarList
+            measure="calls"
+            empty="No matches yet."
+            rows={[
+              { label: "Typed form", value: o.matches.form },
+              { label: "Voice", value: o.matches.voice },
+              { label: "Free text", value: o.matches.text },
+            ]}
+          />
+        </Panel>
+
+        <Panel title="Scheme categories" subtitle="A scheme can sit in several categories.">
+          <BarList measure="calls" empty="No schemes yet." rows={s.categories.slice(0, 10).map((c) => ({ label: c.category, value: c.count }))} />
+        </Panel>
+
+        <Panel title="States with the most state schemes" subtitle="Central schemes (open across India) are not counted here.">
+          <BarList measure="calls" empty="No state schemes yet." rows={s.states.slice(0, 10).map((st) => ({ label: st.state, value: st.count }))} />
+        </Panel>
       </div>
+
+      <Panel title="Recent runs" subtitle="Scrapes, re-ingests and curator edits. Each run that changed rows is a new corpus version." action={<Link href="/runs" className="btn-ghost">All runs</Link>}>
+        {o.runs.length === 0 ? (
+          <p className="py-6 text-center text-sm text-ink-soft">No runs yet.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {o.runs.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                <span className="flex items-center gap-2">
+                  <RunStatus status={r.status} />
+                  <span className="font-medium text-ink">#{r.id} · {r.mode}</span>
+                  <span className="text-ink-faint">{fmtDateTime(r.startedAt)}</span>
+                </span>
+                <span className="text-ink-soft">
+                  +{fmt(r.added)} added · {fmt(r.updated)} updated · {fmt(r.flagged)} flagged
+                  {r.corpusVersion ? ` · v${r.corpusVersion}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
     </div>
   );
 }

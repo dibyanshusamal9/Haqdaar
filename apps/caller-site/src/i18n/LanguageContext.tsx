@@ -2,24 +2,27 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { LanguageCode } from "./types";
-import { translations } from "./translations";
+import { Dict, translations } from "./translations";
 
 interface LanguageContextProps {
   language: LanguageCode;
   setLanguage: (lang: LanguageCode) => void;
-  t: typeof translations.en;
+  t: Dict;
 }
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
+const STORAGE_KEY = "haqdaar_language";
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguageState] = useState<LanguageCode>("en");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const savedLang = localStorage.getItem("raahi_language") as LanguageCode;
-    if (savedLang && translations[savedLang]) {
-      setLanguageState(savedLang);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY) as LanguageCode | null;
+      if (saved && translations[saved]) setLanguageState(saved);
+    } catch {
+      /* storage blocked: stay on English */
     }
     setMounted(true);
   }, []);
@@ -33,23 +36,26 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   const setLanguage = (lang: LanguageCode) => {
     setLanguageState(lang);
-    localStorage.setItem("raahi_language", lang);
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch {
+      /* ignore */
+    }
   };
 
   const t = translations[language] || translations.en;
 
   if (!mounted) {
     return (
-      <div style={{ position: "fixed", inset: 0, backgroundColor: "#111", zIndex: 9999, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <h2 className="brand-font" style={{ fontSize: "2rem", color: "white", margin: 0, letterSpacing: 0 }}>RAAHI</h2>
-        {/* Intentionally blank loading text during SSR to prevent wrong-language flash */}
+      <div style={{ position: "fixed", inset: 0, backgroundColor: "#1c1710", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <h2 className="brand-font" style={{ fontSize: "2rem", color: "white", margin: 0 }}>Haqdaar.ai</h2>
       </div>
     );
   }
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t }}>
-      <div className={`lang-${language} dir-${t.direction}`} style={{ display: 'contents' }}>
+      <div className={`lang-${language} dir-${t.direction}`} style={{ display: "contents" }}>
         {children}
       </div>
     </LanguageContext.Provider>

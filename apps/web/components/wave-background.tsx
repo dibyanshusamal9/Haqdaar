@@ -7,9 +7,9 @@ import { useEffect, useRef } from "react";
 // people who prefer reduced motion.
 
 const TAU = Math.PI * 2;
-const LOW: [number, number, number] = [167, 139, 250];   // violet-400
-const HIGH: [number, number, number] = [91, 33, 182];    // violet-800
-const SPRAY = ["139,92,246", "167,139,250", "232,121,249"];   // violet-500, violet-400, fuchsia-400
+const LOW: [number, number, number] = [240, 176, 102];   // saffron-300
+const HIGH: [number, number, number] = [159, 81, 10];    // saffron-700
+const SPRAY = ["232,128,31", "240,176,102", "47,107,70"];   // saffron-500, saffron-300, field green
 const SHADES = 8;
 const ALPHAS = 16;
 const FPS = 24;

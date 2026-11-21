@@ -1,46 +1,69 @@
-# Environment & Secrets
+# ===================================================================
+# Haqdaar.ai: files that never belong in Git.
+# Each app also has its own .gitignore for framework-specific output.
+# ===================================================================
+
+# --- Secrets and local configuration ---------------------------------
+# API keys, database URL, admin code. Only the template is committed.
 .env
 .env.*
 !.env.example
 *.pem
 *.key
-*.cert
+*.crt
 secrets/
 
-# Databases & Archives
+# --- Dependencies ------------------------------------------------------
+node_modules/
+.pnpm-store/
+
+# --- Build output and caches -------------------------------------------
+dist/
+build/
+.next/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+apps/api/build-preview/
+
+# --- Logs ---------------------------------------------------------------
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Data ----------------------------------------------------------------
+# The raw myscheme.gov.in scrape cache (about 10k JSON files, rebuilt by
+# `npm run scrape` in apps/api) and admin-triggered run logs.
+data/myscheme/raw/
+data/myscheme/logs/
+# Local database files and dumps (they hold citizen profiles from the match log).
 *.db
 *.sqlite
 *.sqlite3
-_to_delete/
-*.tar.gz
-*.zip
-
-# Dependencies & Builds
-node_modules/
-.next/
-dist/
-build/
-.turbo/
-__pycache__/
-*.pyc
-.venv/
-venv/
-env/
-ENV/
-
-# Logs & Caches
-*.log
-.DS_Store
-.pytest_cache/
-.mypy_cache/
-
-
-# Local database backups (contain beneficiary data)
+*.dump
 db/backups/
-
-# The local PostgreSQL install and its live data (contains beneficiary data)
 pgsql/
 
-# Generated caches
-*.tsbuildinfo
+# --- Media sources ---------------------------------------------------------
+# The original animation frames archive is large and kept locally; the encoded
+# WebP frames in apps/caller-site/public are what the site uses.
+assets/source/**/*.zip
+
+# --- Generated at run time --------------------------------------------------
+# Written by scripts/dev/run.bat; the tunnel address changes every run.
+phone-line-url.txt
+
+# --- Local tools, editors and OS files ----------------------------------------
+/.agent/
+/.claude/
 .impeccable/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

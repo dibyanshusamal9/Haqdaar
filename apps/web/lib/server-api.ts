@@ -1,45 +1,55 @@
-// Server-side access to the voice backend as the signed-in officer.
+// Server-side access to the Haqdaar.ai API as the signed-in curator.
 // Server components and actions only (reads the session cookie).
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { SESSION_COOKIE } from "@/lib/session";
+import { NAME_COOKIE, SESSION_COOKIE } from "@/lib/session";
 
-export const VOICE_API = process.env.VOICE_API_URL || "http://localhost:8000";
+export const HAQDAAR_API = (process.env.HAQDAAR_API_URL || "http://localhost:4000").replace(/\/$/, "");
 
-async function get(path: string): Promise<Response> {
-  const token = cookies().get(SESSION_COOKIE)?.value;
-  const r = await fetch(`${VOICE_API}${path}`, {
-    cache: "no-store",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
+export class ApiFailure extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+/** Calls /api/admin/... (or any /api path) with the curator's access code. */
+export async function adminFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const code = cookies().get(SESSION_COOKIE)?.value;
+  let r: Response;
+  try {
+    r = await fetch(`${HAQDAAR_API}/api${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: {
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(code ? { "x-admin-code": code } : {}),
+      },
+    });
+  } catch {
+    throw new ApiFailure("Can't reach the Haqdaar.ai API. Check that apps/api is running.", 0);
+  }
   if (r.status === 401) redirect("/signin?reason=expired");
   return r;
 }
 
-/** GET a backend path; signs the officer out when their session has ended. */
-export async function api<T>(path: string): Promise<T> {
-  const r = await get(path);
-  if (!r.ok) throw new Error(`${path} → ${r.status}`);
-  return r.json() as Promise<T>;
-}
-
-/** Like api(), but null when the backend says 404. */
-export async function apiOrNull<T>(path: string): Promise<T | null> {
-  const r = await get(path);
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`${path} → ${r.status}`);
-  return r.json() as Promise<T>;
-}
-
-/** The signed-in officer's name, read from the session for display only
- *  (the backend checks the session itself on every request). */
-export function officerName(): string | null {
-  const token = cookies().get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  try {
-    const claims = JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString("utf8"));
-    return typeof claims.name === "string" ? claims.name : null;
-  } catch {
-    return null;
+async function message(r: Response): Promise<string> {
+  const body = await r.json().catch(() => null);
+  const m = body?.message;
+  if (typeof m === "string") {
+    const errs = Array.isArray(body?.errors) ? body.errors.map((e: { field: string; message: string }) => `${e.field}: ${e.message}`).join("; ") : "";
+    return errs ? `${m}: ${errs}` : m;
   }
+  return `Request failed (${r.status}).`;
+}
+
+/** GET (or send) and parse JSON; throws ApiFailure with the API's message. */
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const r = await adminFetch(path, init);
+  if (!r.ok) throw new ApiFailure(await message(r), r.status);
+  return r.json() as Promise<T>;
+}
+
+/** The signed-in curator's name, for display only. */
+export function curatorName(): string | null {
+  return cookies().get(NAME_COOKIE)?.value ?? null;
 }

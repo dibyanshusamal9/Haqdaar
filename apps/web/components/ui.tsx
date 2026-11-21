@@ -3,9 +3,9 @@
 import { cn } from "@/lib/utils";
 import { fmt } from "@/lib/format";
 
-/** The RAAHI logo, as on the caller site: the राही wordmark (Yatra One) over
- *  its name. `tag` puts a small label, e.g. the platform's name, beside it. */
-export function RaahiLogo({ size = "md", tag }: { size?: "md" | "lg"; tag?: string }) {
+/** The Haqdaar.ai logo, as on the citizen site: the हक़दार wordmark (Yatra One)
+ *  over its name. `tag` puts a small label, e.g. the platform's name, beside it. */
+export function HaqdaarLogo({ size = "md", tag }: { size?: "md" | "lg"; tag?: string }) {
   return (
     <span className={cn("text-halo flex flex-col", size === "lg" && "items-center")}>
       <span className="flex items-center gap-3">
@@ -17,7 +17,7 @@ export function RaahiLogo({ size = "md", tag }: { size?: "md" | "lg"; tag?: stri
             size === "lg" ? "text-[4.75rem] leading-none" : "text-[2.5rem] leading-none sm:text-[3rem]",
           )}
         >
-          राही
+          हक़दार
         </span>
         {tag && (
           <span className="hidden rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 sm:inline">
@@ -31,7 +31,7 @@ export function RaahiLogo({ size = "md", tag }: { size?: "md" | "lg"; tag?: stri
           size === "lg" ? "mt-2.5 text-[12px] tracking-[0.16em]" : "mt-1.5 text-[9px] tracking-[0.14em] sm:text-[10px]",
         )}
       >
-        RAAHI - Rural AI Advisor for Household Income
+        Haqdaar.ai · Welfare scheme eligibility
       </span>
     </span>
   );

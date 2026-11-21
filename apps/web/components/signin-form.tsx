@@ -23,8 +23,8 @@ export function SignInForm({ next, expired }: { next: string; expired: boolean }
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Sign in</h1>
         <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-          See calls, skills and job openings for every district, and keep the job
-          openings up to date.
+          Run the myscheme.gov.in scraper, review eligibility rules that could not
+          be normalised automatically, and audit every match.
         </p>
       </div>
       <input type="hidden" name="next" value={next} />
@@ -33,7 +33,7 @@ export function SignInForm({ next, expired }: { next: string; expired: boolean }
         <input id={`${uid}-name`} name="name" className="field mt-1.5" autoComplete="name" maxLength={80} />
       </div>
       <div>
-        <label htmlFor={`${uid}-code`} className="label">Officer access code</label>
+        <label htmlFor={`${uid}-code`} className="label">Admin access code</label>
         <input
           id={`${uid}-code`}
           name="code"

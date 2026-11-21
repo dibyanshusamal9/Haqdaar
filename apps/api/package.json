@@ -1,0 +1,58 @@
+{
+  "name": "haqdaar-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Haqdaar.ai API: myscheme.gov.in scraper, voice/text profile extraction and the deterministic eligibility matcher",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "dev": "npm run build && node --watch dist/main.js",
+    "migrate": "node dist/cli.js migrate",
+    "scrape": "node dist/cli.js scrape",
+    "ingest": "node dist/cli.js ingest",
+    "test": "node --experimental-vm-modules --no-warnings node_modules/jest/bin/jest.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "^12.1.2",
+    "@nestjs/core": "^12.1.2",
+    "@nestjs/platform-express": "^12.1.2",
+    "dotenv": "^18.0.7",
+    "pg": "^8.23.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "ws": "^8.23.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^12.1.2",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
+    "typescript": "~6.0.3"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "rootDir": ".",
+    "testRegex": "tests/.*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.json",
+          "diagnostics": {
+            "ignoreCodes": [
+              151002
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,22 +1,17 @@
-# RAAHI — Officer dashboard
+# Haqdaar.ai curator console
 
-Next.js 14 (App Router) + Tailwind. Officers sign in with the officer access
-code, then see calls, skills and job openings by district and keep job
-openings up to date.
+Next.js 14 (pnpm). For the Admin / Curator in the report's use cases:
 
-## Pages
+- **Overview**: corpus size, rule coverage, review status, how citizens give their details
+- **Review queue**: schemes the normaliser flagged (FR-08); approve, flag, or rewrite their rules
+- **Scrape runs**: start a myscheme.gov.in scrape + ingest or a re-ingest (UC-06); run history
+- **Match log**: every match with its corpus version; *Replay* checks reproducibility (NFR-01)
 
-    /signin                     sign in (name + officer access code)
-    /                           overview: demand vs supply, maps, charts
-    /districts, /districts/[id] every district, and one district in detail
-    /jobs                       add, edit and delete job openings
-    /beneficiaries              callers on record (with delete)
-    /recommendations/[id]       why a caller got their suggestions
-
-Data comes from the voice API's `/admin/*` and `/officer/*` endpoints.
-
-## Run
+Sign in with `ADMIN_ACCESS_CODE` from the API's `.env`. The code is kept in an httpOnly cookie
+and every API call happens server-side.
 
     pnpm install
-    cp .env.example .env.local
-    pnpm dev
+    pnpm dev            # http://localhost:3000
+
+`.env.local`: `HAQDAAR_API_URL=http://localhost:4000`,
+`NEXT_PUBLIC_CITIZEN_SITE_URL=http://localhost:3001`.

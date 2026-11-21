@@ -1,149 +1,112 @@
-# RAAHI
+# Haqdaar.ai
 
-Rural AI Advisor for Household Income.
+**A multimodal, deterministic eligibility matcher for Indian government welfare schemes.**
 
-Voice-first AI counsellor for NSQF-aligned skilling under PM-AJAY GIA.
-A beneficiary calls a number, speaks their answers in their own language,
-and receives three ranked pathways with a spoken reason for each — grounded
-in real NSQF qualifications, real training centres, and real district demand data.
+*Haqdaar* (हक़दार) means "one who is rightfully entitled". A citizen speaks or types their
+situation once; the words land in an editable form; a PostgreSQL/JSONB rules engine (not a
+language model) decides which of the **4,700+ central and state schemes on myscheme.gov.in**
+they qualify for, and shows the reason for every match.
 
-Repo: <https://github.com/dibyanshusamal9/Raahi>
-
-Built for **Smart India Hackathon 2026**. District officers use a dashboard
-to see calls, skills and job openings by district and to keep the openings
-up to date.
+UCS503 Software Engineering project, Thapar Institute of Engineering and Technology, Patiala:
+Dibyanshu Samal, Gunagye Jain, Yash Jagwan. Supervisor: Paramveer Sidhu.
 
 ## Layout
 
     apps/
-      voice/         Python FastAPI — voice pipeline, IVR/WhatsApp webhooks,
-                     STT, LLM extractor, ranker, composer, pack sender
-      web/           Next.js 14 (App Router) — officer dashboard
-      caller-site/   Next.js 16 — RAAHI caller website and web call
-    data/raw/        raahi-official-dataset.xlsx (Official India Data Pack)
-    db/
-      migrations/    Postgres/Supabase schema (base tables, ranker SQL, triggers)
-      seed/          Seed corpus — QPs, centres, district demand
-      supabase_bootstrap.sql   Side-table adds specific to Supabase
-    ingesters/       NSQF ingest scripts (NIELIT extract loader is the main one)
-    docs/            Architecture, SIH 2026 submission write-up, testing guide
-    bootstrap_db.py  One-shot migrate + seed against DATABASE_URL
-    run.bat          Windows launcher (auto-detects Supabase vs local Docker)
-    stop.bat         Kill dev servers + docker
-    .github/workflows/   Re-imports the dataset when the workbook changes
-
----
-
-## Quickstart — LOCAL DOCKER (fastest, offline)
-
-1. Install Docker Desktop, Python 3.11, Node 24, pnpm.
-2. `cp .env.example .env` — keep the local `DATABASE_URL` line
-   (`postgresql://postgres:postgres@localhost:5432/raahi`), fill in your
-   Sarvam key + your extractor LLM key (Groq recommended, free at
-   <https://console.groq.com/keys>).
-3. `run.bat` — starts Postgres, seeds the corpus, launches the voice API
-   at :8000 and the dashboard at :3000, and opens the dashboard in your
-   browser. Two console windows appear (voice, web); close them to stop.
-4. Start the caller website (the public RAAHI site with the web call) in
-   another terminal:
-   ```
-   cd apps/caller-site
-   npm install
-   npx next dev -p 3001
-   ```
+      api/           NestJS API: myscheme.gov.in scraper, rule normaliser, voice/text
+                     extraction (Sarvam AI + Groq Llama 3), deterministic matcher, admin API
+        db/migrations/   schema + the SQL matching engine (haqdaar_eval / haqdaar_match)
+        tests/           unit tests + SQL engine integration tests
+      caller-site/   Next.js 16: the citizen website (check eligibility, browse schemes)
+      web/           Next.js 14: the curator console (runs, review queue, match audit)
+    data/myscheme/raw/   scrape cache (git-ignored; rebuilt by `npm run scrape`)
+    docs/                requirements, design, development, testing, operations,
+                         reports and presentations (see docs/README.md)
+    scripts/dev/         one-click run.bat / stop.bat (database, apps and phone line)
 
 | What | Where |
 |---|---|
-| Caller website | http://localhost:3001 |
-| Officer dashboard | http://localhost:3000 (sign in with the `OFFICER_ACCESS_CODE` from `.env`) |
-| Voice API docs | http://127.0.0.1:8000/docs |
+| Citizen site | http://localhost:3001 |
+| Curator console | http://localhost:3000 (sign in with `ADMIN_ACCESS_CODE`) |
+| API | http://localhost:4000/api (health: `/api/health`) |
 
----
+## Quick start (Windows)
 
-## Quickstart — SUPABASE (cloud)
+Prerequisites: Node 24, pnpm, and PostgreSQL 16 (local install, or Docker Desktop).
 
-1. **Create a Supabase project** in region **`ap-south-1`** (Mumbai)
-   at <https://supabase.com/dashboard>.
+1. `copy .env.example .env` and fill in `HAQDAAR_DATABASE_URL`, `ADMIN_ACCESS_CODE`,
+   `SARVAM_API_KEY` (voice) and `GROQ_API_KEY` (free at <https://console.groq.com/keys>).
+   Without the AI keys everything still works: voice is disabled and free text is parsed by
+   deterministic keyword rules.
+   The database must be UTF-8 (`createdb -E UTF8 -T template0 haqdaar`, or use Docker below).
+2. Build the corpus (about an hour of polite requests the first time; resumable):
 
-2. **Get the pooler connection string** (Supabase → *Project Settings* →
-   *Database* → *Connection Pooling* → *Session mode*, port `6543`).
-   The string looks like:
    ```
-   postgresql://postgres.<PROJECT-REF>:<PASSWORD>@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+   cd apps\api
+   npm install
+   npm run build
+   npm run scrape
+   npm run ingest
    ```
-   - **Do NOT use** the direct URL `db.<ref>.supabase.co:5432` — it is
-     IPv6-only and hangs from most Indian ISPs / Windows.
-   - URL-encode special characters in the password: `@` → `%40`, `:` → `%3A`, `/` → `%2F`.
+3. `run.bat` from the repo root starts the API (:4000), the citizen site (:3001) and the
+   curator console (:3000).
 
-3. **Fill `.env`** — copy `.env.example` and paste:
-   ```
-   SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=eyJ...
-   SUPABASE_ANON_KEY=eyJ...
-   DATABASE_URL=postgresql://postgres.YOUR-PROJECT-REF:URL_ENCODED_PW@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
-   ```
+Using Docker for Postgres instead: `docker compose up -d` gives a UTF-8 `haqdaar` database at
+`postgresql://postgres:postgres@localhost:5432/haqdaar`.
 
-4. **Create every table + seed it** — one command:
-   ```
-   python bootstrap_db.py
-   ```
-   That runs all `db/migrations/*.sql`, the Supabase-specific side-table
-   file, and the seed corpus. Idempotent — safe to re-run.
+## How a match works
 
-5. **Load the Official India Data Pack** (1,947 active NQR qualifications,
-   PM-AJAY rules, Census SC district profiles, source registry):
-   ```
-   python -m ingesters.import_official_dataset
-   ```
+1. **Input**: the citizen types into the form, or records their voice. Sarvam AI transcribes
+   it; Groq-hosted Llama 3 turns the transcript into fixed JSON fields, validated field by
+   field. The transcript stays editable and every field is shown before anything is decided.
+2. **Matching**: `POST /api/match` normalises the profile and calls `haqdaar_match(profile)`,
+   a pure SQL function over each scheme's JSONB rules. No model is called. The same profile
+   against the same corpus version always returns the same list, and each match is logged.
+3. **Results**: every scheme comes back with the conditions the citizen satisfied, anything
+   they still need to confirm, and a link to the official page.
 
-6. **Run the app** — `run.bat` (auto-detects Supabase and skips Docker),
-   then start the caller website as in step 4 of the local quickstart.
+## Where the rules come from
 
-That's it. Your voice pipeline now reads/writes Supabase.
+The scraper reads the same public JSON API the myscheme.gov.in website uses:
 
----
+- the scheme listing (name, level, states, categories),
+- the portal's own eligibility tags (gender, caste, residence, marital status, occupation,
+  employment, disability, BPL, minority, student…), recovered by querying each filter value,
+- exact age and disability-percentage limits, recovered by probing the portal's range filter,
+- each scheme's page and documents list.
 
-## Free LLM options for the extractor
+The normaliser turns tags into hard rules and parses income ceilings from the eligibility text
+with regular expressions. Anything it cannot normalise is flagged for the curator (FR-08).
 
-Set `EXTRACTOR_PROVIDER` in `.env`:
+## Tests
 
-| Provider | Free tier | Latency | Notes |
-|---|---|---|---|
-| **groq** ⭐ | 14 400 req/day | ~250 ms | `llama-3.3-70b-versatile`. Get key at <https://console.groq.com/keys> |
-| **gemini** | 1 500 req/day | ~600 ms | `gemini-2.0-flash`. Get key at <https://aistudio.google.com/apikey> |
-| **sarvam** | included in Sarvam API | 4–8 s | `sarvam-105b` — heavier, occasional hallucinations |
-| **grok** | paid only (xAI credit) | ~500 ms | `grok-3-mini`. Free tier removed by xAI |
-| **mock** | free | instant | Rule-based fallback. Always runs alongside LLM as safety net |
+    cd apps\api
+    npm test
 
-Groq is the recommended default. Every provider is post-processed by a
-grounding-guard sanitizer in `apps/voice/app/services/extractor.py` that
-strips any field the LLM invented without evidence in the user's answer.
-
----
-
-## What ships in MVP (from PRD § 10)
-
-FR-01 → FR-10, three pilot districts (Nalanda, Bhagalpur, Jhabua), four
-languages (Hindi, Bengali, Tamil, Marathi) plus English, demo cohort of
-~30, officer dashboard for one district. Kiosk PWA, DTMF fallback,
-session resumption are V1.1 (scaffolded, not wired here).
-
-## Dataset refresh
-
-`.github/workflows/ingest-weekly.yml` re-imports the Official India Data
-Pack whenever `data/raw/raahi-official-dataset.xlsx` changes, or on demand
-from the Actions tab ("Run workflow"). It needs the repository secret
-`DATABASE_URL`, pointing at a database GitHub can reach (such as Supabase).
+Unit tests cover text parsing, range recovery, normalisation, profile handling, the rule
+extractor and ranking; integration tests run the real SQL engine in a throwaway schema.
 
 ## Data honesty
 
-No row in `qualifications`, `training_centres` or `demand_signals` is
-written without a `source_url` and `evidence_date`. Rows with
-`evidence_date` older than 180 days drop out of scoring automatically.
-The seed corpus follows the same rule.
+Results are informational: the authority running each scheme makes the final decision.
+Haqdaar.ai is a student project and is not affiliated with the Government of India. The match
+log stores only the profile fields used for matching: no names, phone numbers, audio or
+transcripts.
 
-## Language & privacy
+## Documentation and project organization
 
-Phone numbers stored only as SHA-256 hash. Voice audio retained 30 days,
-then anonymised. Beneficiary can trigger right-to-erase from the voice
-line ("delete my record"). Data residency: Supabase Mumbai region.
+Start with the [documentation index](docs/README.md) or [local setup](docs/development/setup.md).
+
+- [Repository map and placement rules](docs/development/repository.md)
+- [Architecture](docs/design/architecture.md) and [design decisions](docs/design/decisions.md)
+- [API contract](docs/design/api.md)
+- [Testing and verification](docs/testing/testing.md)
+- [Requirements traceability](docs/requirements/traceability.md)
+- [Operations and troubleshooting](docs/operations/README.md)
+- [Contribution workflow](CONTRIBUTING.md) and [security practices](SECURITY.md)
+- [Academic report](docs/reports/Haqdaar_ai_Mid_Sem_Report_LaTeX.pdf)
+
+`apps/` contains deployable applications, `assets/source/` contains original media,
+`data/` contains local corpus data, `scripts/` contains repository tooling, and
+`docs/` contains engineering documentation. Framework configuration and lockfiles
+stay beside the application that owns them. Root launchers remain convenient entry points.

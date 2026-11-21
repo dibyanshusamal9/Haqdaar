@@ -12,7 +12,7 @@ const hind = Hind({
   variable: "--font-brand",
   display: "swap",
 });
-// The राही wordmark, as on the caller site.
+// The हक़दार wordmark, as on the citizen site.
 const yatra = Yatra_One({
   subsets: ["devanagari", "latin"],
   weight: "400",
@@ -21,8 +21,8 @@ const yatra = Yatra_One({
 });
 
 export const metadata: Metadata = {
-  title: `RAAHI · ${PLATFORM}`,
-  description: "Calls, skills and job openings by district, for officers working with RAAHI",
+  title: `Haqdaar.ai · ${PLATFORM}`,
+  description: "Run the myscheme.gov.in scraper, review normalised eligibility rules and audit matches for Haqdaar.ai",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

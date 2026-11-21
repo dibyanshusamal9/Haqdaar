@@ -1,44 +1,43 @@
-name: Official Dataset Refresh
+name: Weekly scheme refresh
 
-# Reload the Official India Data Pack whenever the workbook is updated in the
-# repo, or manually via the "Run workflow" button. The old weekly web-scraper
-# workflow has been removed — data/raw/raahi-official-dataset.xlsx is the sole
-# data source.
+# Re-scrapes myscheme.gov.in and re-ingests the corpus every Monday (report §1.2:
+# "refreshed on a schedule"), or on demand from the Actions tab. Upserts are keyed
+# on each scheme's source URL, so re-runs never duplicate rows (FR-09).
+# Needs the repository secret HAQDAAR_DATABASE_URL pointing at a database GitHub
+# can reach (for example Supabase).
 on:
-  push:
-    paths:
-      - "data/raw/raahi-official-dataset.xlsx"
+  schedule:
+    - cron: "30 21 * * 0" # Monday 03:00 IST
   workflow_dispatch: {}
 
 jobs:
-  import-dataset:
+  refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 150
+    defaults:
+      run:
+        working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
 
-      - name: Install dependencies
-        run: python -m pip install pandas psycopg[binary] openpyxl python-dotenv pyarrow
+      - run: npm ci
+      - run: npm run build
 
-      - name: Apply pending DB migrations
-        run: python bootstrap_db.py --migrations-only
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-      - name: Import Official India Data Pack
-        run: python -m ingesters.import_official_dataset
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-      - name: Notify Slack on failure
-        if: failure()
-        uses: slackapi/slack-github-action@v1.27.0
+      # The raw cache is kept between runs so an interrupted run can resume; scheme pages
+      # older than 6 days are always fetched again, so each weekly run picks up edits.
+      - uses: actions/cache@v4
         with:
-          payload: |
-            {"text": "Official dataset import failed — https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}
+          path: data/myscheme/raw
+          key: myscheme-raw-${{ github.run_id }}
+          restore-keys: myscheme-raw-
+
+      - name: Scrape myscheme.gov.in and ingest
+        run: node dist/cli.js refresh --triggered-by github-actions
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INGEST_WEBHOOK_URL }}
+          HAQDAAR_DATABASE_URL: ${{ secrets.HAQDAAR_DATABASE_URL }}

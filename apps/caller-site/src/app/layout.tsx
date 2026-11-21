@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import { Baloo_2, Hind, Yatra_One, Besley } from "next/font/google";
+import { Baloo_2, Hind, Yatra_One, Besley, Manrope } from "next/font/google";
 import Navbar from "@/components/Navbar";
-import "./globals.css";
+import "@/styles/globals.css";
+import "@/styles/haqdaar.css";
+import "@/styles/editorial.css";
+import "@/styles/call.css";
 import { LanguageProvider } from "@/i18n/LanguageContext";
+import { CallProvider } from "@/features/call/CallProvider";
 
 const baloo = Baloo_2({
   subsets: ["latin", "devanagari"],
@@ -27,9 +31,17 @@ const besley = Besley({
   variable: "--font-besley",
 });
 
+// The page typeface of the editorial pages (Devanagari falls back to Noto Sans Devanagari).
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-manrope",
+});
+
 export const metadata: Metadata = {
-  title: "RAAHI - Find your path to income",
-  description: "Rural AI Advisor for Household Income",
+  title: "Haqdaar.ai: know every scheme you're entitled to",
+  description:
+    "Speak or type your situation once. Haqdaar.ai matches you against 4,700+ Indian central and state welfare schemes with fixed, explainable rules.",
 };
 
 export default function RootLayout({
@@ -41,15 +53,13 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="stylesheet" href="/css/navbar.css" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className={`${baloo.variable} ${hind.variable} ${yatraOne.variable} ${besley.variable}`}>
+      <body className={`${baloo.variable} ${hind.variable} ${yatraOne.variable} ${besley.variable} ${manrope.variable}`}>
         <LanguageProvider>
-          <Navbar />
-          <div className="noise-overlay" />
-          {children}
+          <CallProvider>
+            <Navbar />
+            {children}
+          </CallProvider>
         </LanguageProvider>
       </body>
     </html>

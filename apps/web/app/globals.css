@@ -5,7 +5,7 @@
 :root {
   color-scheme: light;
   --bg: #FFFFFF;
-  --ink: #14112B;
+  --ink: #1C1710;
 }
 
 html, body { background: var(--bg); color: var(--ink); }
@@ -20,7 +20,7 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   width: 100%;
   height: 560px;
   pointer-events: none;
-  background: radial-gradient(34% 30% at 72% 46%, rgba(237, 229, 255, 0.75) 0%, rgba(237, 229, 255, 0) 70%);
+  background: radial-gradient(34% 30% at 72% 46%, rgba(251, 230, 204, 0.7) 0%, rgba(251, 230, 204, 0) 70%);
   -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
           mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
 }
@@ -35,9 +35,9 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 }
 
 @layer base {
-  ::selection { background: #EDE5FF; color: #14112B; }
+  ::selection { background: #FBE6CC; color: #1C1710; }
   a:focus-visible, button:focus-visible, summary:focus-visible {
-    outline: 2px solid #7C3AED;
+    outline: 2px solid #C4650C;
     outline-offset: 2px;
     border-radius: 8px;
   }
@@ -112,7 +112,7 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   .label { @apply block text-sm font-medium text-ink; }
   .field {
     @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink
-           shadow-[0_1px_2px_rgba(20,17,43,.04)] transition placeholder:text-ink-faint
+           shadow-[0_1px_2px_rgba(28,23,16,.04)] transition placeholder:text-ink-faint
            focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-100
            disabled:cursor-not-allowed disabled:bg-canvas disabled:text-ink-faint;
   }
@@ -126,17 +126,17 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   }
 
   /* Bars: violet stripes on a light track; grey stripes for the rest of a chart */
-  .bar-track { @apply h-2.5 w-full overflow-hidden rounded-full bg-[#F1EFF7]; }
+  .bar-track { @apply h-2.5 w-full overflow-hidden rounded-full bg-[#F4EBDC]; }
   .bar-track-hatch {
-    background-image: repeating-linear-gradient(135deg, #ECEAF3 0 4px, #F7F6FB 4px 8px);
+    background-image: repeating-linear-gradient(135deg, #EDE4D3 0 4px, #FBF6EC 4px 8px);
   }
   .bar-fill {
     @apply h-full rounded-full;
-    background-image: repeating-linear-gradient(135deg, #7C3AED 0 6px, #9466FF 6px 12px);
+    background-image: repeating-linear-gradient(135deg, #C4650C 0 6px, #E8801F 6px 12px);
   }
   .bar-grey {
     @apply h-full rounded-full;
-    background-image: repeating-linear-gradient(135deg, #D6D2E4 0 4px, #E8E5F1 4px 8px);
+    background-image: repeating-linear-gradient(135deg, #DDD2BE 0 4px, #EDE4D3 4px 8px);
   }
 
   /* Tables inside cards */
