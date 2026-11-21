@@ -174,7 +174,7 @@ const en = {
 
   footer: {
     line: "Haqdaar.ai: a multimodal, deterministic eligibility matcher for Indian welfare schemes.",
-    course: "UCS503 Software Engineering project · Thapar Institute of Engineering and Technology, Patiala",
+    course: "SatHack 2026 · Thapar Institute of Engineering and Technology, Patiala",
     data: "Scheme data",
     callbar: "Find the schemes you're entitled to, in about two minutes:",
     sourcesTitle: "Data and technology",
@@ -426,7 +426,7 @@ const hi: Dict = {
 
   footer: {
     line: "हक़दार.ai: भारतीय कल्याण योजनाओं के लिए आवाज़ और लिखित, दोनों तरह की जानकारी लेने वाला, तय नियमों से पात्रता बताने वाला साधन।",
-    course: "UCS503 सॉफ़्टवेयर इंजीनियरिंग परियोजना · थापर इंस्टीट्यूट ऑफ़ इंजीनियरिंग एंड टेक्नोलॉजी, पटियाला",
+    course: "SatHack 2026 · थापर इंस्टीट्यूट ऑफ़ इंजीनियरिंग एंड टेक्नोलॉजी, पटियाला",
     data: "योजना डेटा",
     callbar: "लगभग दो मिनट में जानिए, आप किन योजनाओं के हक़दार हैं:",
     sourcesTitle: "डेटा और तकनीक",

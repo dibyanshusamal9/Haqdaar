@@ -124,7 +124,6 @@ export default function AboutPage() {
               <div className="sdg" style={{ justifyContent: "flex-start" }}>
                 {TEAM.map((m) => <b key={m}>{m}</b>)}
               </div>
-              <p className="body">{a.supervisor}</p>
             </div>
             <div className="fig">
               <h3 style={{ fontSize: 18, marginBottom: 8 }}>{a.dataTitle}</h3>

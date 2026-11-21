@@ -54,7 +54,6 @@ export interface AboutBody {
   mission: string;
   vision: string;
   teamIntro: string;
-  supervisor: string;
   dataTitle: string;
   data: string;
 }
@@ -105,8 +104,7 @@ export const ABOUT: Record<LanguageCode, AboutBody> = {
     mvLead: "A clear purpose for every search, and a future where no entitlement goes unclaimed because the rules were hard to read.",
     mission: "To make every citizen's welfare entitlements discoverable in their own words: listen in their language, check every central and state scheme against fixed, published rules, and explain each result plainly, without asking anyone to read legal prose or trust a black box.",
     vision: "A country where nobody misses a benefit meant for them because the rules were hard to find or understand. Finding what you are entitled to should be as easy as describing your life, and every answer should be one you can check.",
-    teamIntro: "Haqdaar.ai is a UCS503 Software Engineering project by third-year Computer Engineering students at Thapar Institute of Engineering and Technology, Patiala.",
-    supervisor: "Supervised by Paramveer Sidhu, Computer Science and Engineering Department.",
+    teamIntro: "Haqdaar.ai is built for SatHack 2026 by a student team from Thapar Institute of Engineering and Technology, Patiala.",
     dataTitle: "Data and disclaimer",
     data: "Scheme information comes from myscheme.gov.in, the Government of India's national scheme portal, and is refreshed on a schedule. Haqdaar.ai is an independent student project and is not affiliated with or endorsed by the Government of India. Results are for information only; the authority running each scheme makes the final decision.",
   },
@@ -155,11 +153,10 @@ export const ABOUT: Record<LanguageCode, AboutBody> = {
     mvLead: "हर खोज के लिए एक साफ़ मक़सद, और एक ऐसा भविष्य जहाँ कोई हक़ इसलिए न छूटे कि नियम पढ़ने में मुश्किल थे।",
     mission: "हर नागरिक के कल्याण संबंधी हक़ उसकी अपनी भाषा में खोजने योग्य बनाना: उनकी भाषा में सुनना, केंद्र और राज्य की हर योजना को तय, प्रकाशित नियमों से जाँचना, और हर नतीजे को आसान शब्दों में समझाना, बिना किसी से कानूनी भाषा पढ़वाए या किसी अनदेखी व्यवस्था पर भरोसा करवाए।",
     vision: "एक ऐसा देश जहाँ कोई भी अपने लिए बनी योजना इसलिए न खोए कि नियम ढूँढना या समझना मुश्किल था। अपना हक़ जानना उतना ही आसान हो जितना अपने जीवन के बारे में बताना, और हर जवाब ऐसा हो जिसे आप जाँच सकें।",
-    teamIntro: "हक़दार.ai थापर इंस्टीट्यूट ऑफ़ इंजीनियरिंग एंड टेक्नोलॉजी, पटियाला के कंप्यूटर इंजीनियरिंग तीसरे वर्ष के छात्रों की UCS503 सॉफ़्टवेयर इंजीनियरिंग परियोजना है।",
-    supervisor: "मार्गदर्शन: Paramveer Sidhu, कंप्यूटर साइंस एंड इंजीनियरिंग विभाग।",
+    teamIntro: "हक़दार.ai को SatHack 2026 के लिए थापर इंस्टीट्यूट ऑफ़ इंजीनियरिंग एंड टेक्नोलॉजी, पटियाला के छात्रों की एक टीम ने बनाया है।",
     dataTitle: "डेटा और अस्वीकरण",
     data: "योजनाओं की जानकारी भारत सरकार के राष्ट्रीय योजना पोर्टल myscheme.gov.in से ली जाती है और तय समय पर ताज़ा की जाती है। हक़दार.ai एक स्वतंत्र छात्र परियोजना है और इसका भारत सरकार से कोई संबंध या समर्थन नहीं है। नतीजे केवल जानकारी के लिए हैं; हर योजना का अंतिम फ़ैसला उसे चलाने वाला प्राधिकरण करता है।",
   },
 };
 
-export const TEAM = ["Dibyanshu Samal", "Gunagye Jain", "Yash Jagwan"];
+export const TEAM = ["Apurv", "Dibyanshu Samal", "Shiven Bansal", "Somraj Singha"];

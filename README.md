@@ -7,8 +7,8 @@ situation once; the words land in an editable form; a PostgreSQL/JSONB rules eng
 language model) decides which of the **4,700+ central and state schemes on myscheme.gov.in**
 they qualify for, and shows the reason for every match.
 
-UCS503 Software Engineering project, Thapar Institute of Engineering and Technology, Patiala:
-Dibyanshu Samal, Gunagye Jain, Yash Jagwan. Supervisor: Paramveer Sidhu.
+Built for SatHack 2026 by Apurv, Dibyanshu Samal, Shiven Bansal and Somraj Singha,
+Thapar Institute of Engineering and Technology, Patiala.
 
 ## Layout
 
